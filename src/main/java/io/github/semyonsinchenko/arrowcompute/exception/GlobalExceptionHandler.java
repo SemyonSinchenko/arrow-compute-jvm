@@ -1,7 +1,7 @@
 package io.github.semyonsinchenko.arrowcompute.exception;
 
 public interface GlobalExceptionHandler {
-    ErrorResponse handleBuildConstraintException(BuildConstraintException exception);
+    ErrorResponse handleBusinessException(RuntimeException exception);
 
-    ErrorResponse handleBuildValidationException(BuildValidationException exception);
+    ErrorResponse handleValidationException(IllegalArgumentException exception);
 }
