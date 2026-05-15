@@ -102,9 +102,22 @@ tasks.withType<Jar>().configureEach {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
+val jmhInclude = providers.gradleProperty("jmhInclude")
+val jmhExclude = providers.gradleProperty("jmhExclude")
+
 jmh {
-    includes.set(listOf(".*"))
-    warmupIterations.set(2)
-    iterations.set(3)
-    fork.set(1)
+    includes.set(
+        jmhInclude
+            .map { listOf(it) }
+            .orElse(listOf(".*"))
+    )
+    excludes.set(
+        jmhExclude
+            .map { listOf(it) }
+            .orElse(emptyList())
+    )
+    warmupIterations.set(3)
+    iterations.set(4)
+    fork.set(2)
+    jvmArgsAppend.set(sharedJvmArgs)
 }
