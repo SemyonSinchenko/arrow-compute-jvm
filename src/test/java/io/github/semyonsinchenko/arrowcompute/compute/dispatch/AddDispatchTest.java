@@ -1,6 +1,8 @@
 package io.github.semyonsinchenko.arrowcompute.compute.dispatch;
 
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,44 @@ final class AddDispatchTest {
             right.setValueCount(1);
 
             assertThrows(UnsupportedOperationException.class, () -> AddDispatch.eval(left, right, out));
+        }
+    }
+
+    @Test
+    void eval_routesInt64AndFloat64Triples() {
+        try (var root = new RootAllocator();
+             var child = root.newChildAllocator("add-dispatch-more", 0, Long.MAX_VALUE);
+             var left64 = new BigIntVector("left64", child);
+             var right64 = new BigIntVector("right64", child);
+             var out64 = new BigIntVector("out64", child);
+             var leftF = new Float8Vector("leftF", child);
+             var rightF = new Float8Vector("rightF", child);
+             var outF = new Float8Vector("outF", child)) {
+            left64.allocateNew(2);
+            right64.allocateNew(2);
+            out64.allocateNew(2);
+            left64.set(0, 10L);
+            left64.set(1, 20L);
+            right64.set(0, 1L);
+            right64.set(1, 2L);
+            left64.setValueCount(2);
+            right64.setValueCount(2);
+            AddDispatch.eval(left64, right64, out64);
+            assertEquals(11L, out64.get(0));
+            assertEquals(22L, out64.get(1));
+
+            leftF.allocateNew(2);
+            rightF.allocateNew(2);
+            outF.allocateNew(2);
+            leftF.set(0, 1.5d);
+            leftF.set(1, 2.25d);
+            rightF.set(0, 0.5d);
+            rightF.set(1, 0.75d);
+            leftF.setValueCount(2);
+            rightF.setValueCount(2);
+            AddDispatch.eval(leftF, rightF, outF);
+            assertEquals(2.0d, outF.get(0));
+            assertEquals(3.0d, outF.get(1));
         }
     }
 }
