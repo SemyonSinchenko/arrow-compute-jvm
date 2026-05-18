@@ -1,6 +1,7 @@
 package io.github.semyonsinchenko.arrowcompute.compute;
 
 import io.github.semyonsinchenko.arrowcompute.compute.dispatch.AddDispatch;
+import io.github.semyonsinchenko.arrowcompute.compute.dispatch.DivideDispatch;
 import io.github.semyonsinchenko.arrowcompute.compute.dispatch.MulDispatch;
 import org.apache.arrow.vector.FieldVector;
 
@@ -17,5 +18,9 @@ public final class Compute {
 
     public static void mul(FieldVector left, FieldVector right, FieldVector out) {
         MulDispatch.eval(left, right, out);
+    }
+
+    public static void divide(FieldVector left, FieldVector right, FieldVector out) {
+        DivideDispatch.eval(left, right, out);
     }
 }
