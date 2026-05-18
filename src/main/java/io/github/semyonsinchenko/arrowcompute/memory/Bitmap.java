@@ -2,13 +2,14 @@ package io.github.semyonsinchenko.arrowcompute.memory;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.nio.ByteOrder;
 import java.util.Objects;
 
 /**
  * Word-wise Arrow validity bitmap operations (LSB-first, 1=valid).
  */
 public final class Bitmap {
-    private static final ValueLayout.OfLong LONG_LE = ValueLayout.JAVA_LONG_UNALIGNED;
+    private static final ValueLayout.OfLong LONG_LE = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
     private Bitmap() {
     }
