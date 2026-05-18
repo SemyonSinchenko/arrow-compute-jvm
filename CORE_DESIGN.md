@@ -153,6 +153,19 @@ public final class Compute {
 
 Array-producing functions should write into preallocated output vectors. Convenience methods that allocate outputs may be added later, but they must be benchmarked separately.
 
+### Aggregation defaults (MVP)
+
+For first scalar aggregations, wrappers enforce fixed defaults:
+
+- `skip_nulls = true`
+- `min_count = 1`
+
+This means all-null input yields a null scalar output, while mixed-null
+input aggregates only valid rows. Int64 `sum` uses Java `long`
+wraparound semantics. Float `sum` remains naive order-dependent
+arithmetic, and tests use bounded ULP tolerance when SIMD reduction order
+differs from scalar reference order.
+
 ## Options and flags
 
 Operations may have orthogonal modes: `checked` vs `unchecked` arithmetic,
