@@ -30,11 +30,11 @@ import java.util.concurrent.TimeUnit;
  * This keeps the baseline scalar on purpose, but it is not zero-cost and can be measurably slower
  * (commonly around 5-15%) than a truly plain naive loop.</p>
  */
-public class AddInt32RawBenchmark {
-    private static final long SEED = 123456789L;
+public class AddInt32RawBenchmark implements BenchmarkMetadataProvider {
+    private static final long SEED = BenchmarkProfiles.REQUIRED_SEED;
     private static final ValueLayout.OfInt INT32_LE = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
-    @Param({"4096", "16384", "65536", "262144"})
+    @Param({"1024", "16384", "65536", "1048576"})
     public int rows;
 
     private Arena arena;
@@ -44,6 +44,7 @@ public class AddInt32RawBenchmark {
 
     @Setup
     public void setUp() {
+        BenchmarkSupport.validateTrial(this, SEED);
         arena = Arena.ofConfined();
         long bytes = (long) rows * Integer.BYTES;
         left = arena.allocate(bytes);
@@ -85,4 +86,19 @@ public class AddInt32RawBenchmark {
         bh.consume(tail);
         bh.consume(out);
     }
+
+    @Override
+    public String layer() { return "raw-vector"; }
+    @Override
+    public String question() { return "Is Vector API doing its job?"; }
+    @Override
+    public String baseline() { return "naive MemorySegment loop"; }
+    @Override
+    public String type() { return "int32-add"; }
+    @Override
+    public String benchmarkId() { return "add-int32-raw-vector"; }
+    @Override
+    public int rows() { return rows; }
+    @Override
+    public int nullPercent() { return 0; }
 }

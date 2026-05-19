@@ -19,7 +19,8 @@ import org.openjdk.jmh.infra.Blackhole;
 @State(Scope.Thread)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-public class StartsWithUtf8RawBenchmark {
+public class StartsWithUtf8RawBenchmark implements BenchmarkMetadataProvider {
+    private static final long SEED = BenchmarkProfiles.REQUIRED_SEED;
     @Param({"1024", "16384", "65536", "1048576"})
     public int rows;
 
@@ -34,6 +35,7 @@ public class StartsWithUtf8RawBenchmark {
 
     @Setup
     public void setUp() {
+        BenchmarkSupport.validateTrial(this, SEED);
         arena = Arena.ofConfined();
         byte[] base = "abcdefghijklmnopqrstuvwxyz0123456789".getBytes(StandardCharsets.UTF_8);
         needle = new byte[needleLength];
@@ -100,4 +102,19 @@ public class StartsWithUtf8RawBenchmark {
         }
         bh.consume(outBits);
     }
+
+    @Override
+    public String layer() { return "raw-vector"; }
+    @Override
+    public String question() { return "Is Vector API doing its job?"; }
+    @Override
+    public String baseline() { return "naive MemorySegment loop"; }
+    @Override
+    public String type() { return "utf8-startswith"; }
+    @Override
+    public String benchmarkId() { return "startswith-utf8-raw-vector"; }
+    @Override
+    public int rows() { return rows; }
+    @Override
+    public int nullPercent() { return 0; }
 }

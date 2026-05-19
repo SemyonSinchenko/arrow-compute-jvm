@@ -26,8 +26,10 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-public class AddInt32PathBenchmark {
-    @Param({"4096", "16384", "65536"})
+public class AddInt32DispatchBenchmark implements BenchmarkMetadataProvider {
+    private static final long SEED = BenchmarkProfiles.REQUIRED_SEED;
+
+    @Param({"1024", "16384", "65536", "1048576"})
     public int rows;
 
     @Param({"0", "1", "10", "30"})
@@ -46,6 +48,7 @@ public class AddInt32PathBenchmark {
 
     @Setup(Level.Trial)
     public void setUp() {
+        BenchmarkSupport.validateTrial(this, SEED);
         root = new RootAllocator();
         child = root.newChildAllocator("add-int32-path", 0, Long.MAX_VALUE);
         left = new IntVector("left", child);
@@ -58,8 +61,8 @@ public class AddInt32PathBenchmark {
         for (int i = 0; i < rows; i++) {
             int lv = i * 13 - 97;
             int rv = 1003 - i * 7;
-            boolean lValid = (i % 100) >= nullPercent;
-            boolean rValid = ((i + 17) % 100) >= nullPercent;
+            boolean lValid = BenchmarkSupport.isValidAt(i, nullPercent, 0);
+            boolean rValid = BenchmarkSupport.isValidAt(i, nullPercent, 17);
             if (lValid) {
                 left.set(i, lv);
             } else {
@@ -93,7 +96,7 @@ public class AddInt32PathBenchmark {
 
     @Setup(Level.Invocation)
     public void clearOut() {
-        out.setValueCount(0);
+        BenchmarkSupport.clearOut(out);
     }
 
     @Benchmark
@@ -113,4 +116,19 @@ public class AddInt32PathBenchmark {
         Compute.add(left, right, out);
         bh.consume(out);
     }
+
+    @Override
+    public String layer() { return "dispatch"; }
+    @Override
+    public String question() { return "Is dispatch overhead acceptable?"; }
+    @Override
+    public String baseline() { return "wrapper"; }
+    @Override
+    public String type() { return "int32-add"; }
+    @Override
+    public String benchmarkId() { return "add-int32-layer"; }
+    @Override
+    public int rows() { return rows; }
+    @Override
+    public int nullPercent() { return nullPercent; }
 }

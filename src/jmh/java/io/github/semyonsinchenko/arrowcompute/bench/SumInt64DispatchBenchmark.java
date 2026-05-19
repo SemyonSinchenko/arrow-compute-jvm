@@ -30,11 +30,13 @@ import org.openjdk.jmh.infra.Blackhole;
 @State(Scope.Thread)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-public class SumInt64PathBenchmark {
-    @Param({"4096", "16384", "65536"})
+public class SumInt64DispatchBenchmark implements BenchmarkMetadataProvider {
+    private static final long SEED = BenchmarkProfiles.REQUIRED_SEED;
+
+    @Param({"1024", "16384", "65536", "1048576"})
     public int rows;
 
-    @Param({"0", "10", "50", "100"})
+    @Param({"0", "1", "10", "30", "100"})
     public int nullPercent;
 
     private RootAllocator root;
@@ -47,6 +49,7 @@ public class SumInt64PathBenchmark {
 
     @Setup(Level.Trial)
     public void setUp() {
+        BenchmarkSupport.validateTrial(this, SEED);
         root = new RootAllocator();
         child = root.newChildAllocator("sum-int64-path", 0, Long.MAX_VALUE);
         input = new BigIntVector("input", child);
@@ -55,7 +58,7 @@ public class SumInt64PathBenchmark {
         out.allocateNew(1);
 
         for (int i = 0; i < rows; i++) {
-            boolean valid = (i % 100) >= nullPercent;
+            boolean valid = BenchmarkSupport.isValidAt(i, nullPercent, 0);
             if (valid) {
                 input.set(i, i * 19L - 333L);
             } else {
@@ -81,7 +84,7 @@ public class SumInt64PathBenchmark {
 
     @Setup(Level.Invocation)
     public void clearOut() {
-        out.setValueCount(0);
+        BenchmarkSupport.clearOut(out);
     }
 
     @Benchmark
@@ -103,4 +106,19 @@ public class SumInt64PathBenchmark {
         Compute.sum(input, out);
         bh.consume(out);
     }
+
+    @Override
+    public String layer() { return "dispatch"; }
+    @Override
+    public String question() { return "Is dispatch overhead acceptable?"; }
+    @Override
+    public String baseline() { return "wrapper"; }
+    @Override
+    public String type() { return "int64-sum"; }
+    @Override
+    public String benchmarkId() { return "sum-int64-layer"; }
+    @Override
+    public int rows() { return rows; }
+    @Override
+    public int nullPercent() { return nullPercent; }
 }

@@ -19,10 +19,10 @@ import org.openjdk.jmh.infra.Blackhole;
 @State(Scope.Thread)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-public class DivInt32RawBenchmark {
-    private static final long SEED = 0xC0FFEEL;
+public class DivInt32RawBenchmark implements BenchmarkMetadataProvider {
+    private static final long SEED = BenchmarkProfiles.REQUIRED_SEED;
 
-    @Param({"4096", "16384", "65536", "262144"})
+    @Param({"1024", "16384", "65536", "1048576"})
     public int rows;
 
     private Arena arena;
@@ -32,6 +32,7 @@ public class DivInt32RawBenchmark {
 
     @Setup
     public void setUp() {
+        BenchmarkSupport.validateTrial(this, SEED);
         arena = Arena.ofConfined();
         long bytes = (long) rows * Integer.BYTES;
         left = arena.allocate(bytes);
@@ -69,4 +70,19 @@ public class DivInt32RawBenchmark {
         }
         bh.consume(out);
     }
+
+    @Override
+    public String layer() { return "raw-vector"; }
+    @Override
+    public String question() { return "Is Vector API doing its job?"; }
+    @Override
+    public String baseline() { return "naive MemorySegment loop"; }
+    @Override
+    public String type() { return "int32-div"; }
+    @Override
+    public String benchmarkId() { return "div-int32-raw-vector"; }
+    @Override
+    public int rows() { return rows; }
+    @Override
+    public int nullPercent() { return 0; }
 }

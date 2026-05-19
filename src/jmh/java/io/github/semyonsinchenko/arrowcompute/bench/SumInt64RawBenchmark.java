@@ -22,8 +22,9 @@ import org.openjdk.jmh.infra.Blackhole;
 @State(Scope.Thread)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-public class SumInt64RawBenchmark {
-    @Param({"4096", "16384", "65536", "262144"})
+public class SumInt64RawBenchmark implements BenchmarkMetadataProvider {
+    private static final long SEED = BenchmarkProfiles.REQUIRED_SEED;
+    @Param({"1024", "16384", "65536", "1048576"})
     public int rows;
 
     private Arena arena;
@@ -31,6 +32,7 @@ public class SumInt64RawBenchmark {
 
     @Setup
     public void setUp() {
+        BenchmarkSupport.validateTrial(this, SEED);
         arena = Arena.ofConfined();
         input = arena.allocate((long) rows * Long.BYTES);
         for (int i = 0; i < rows; i++) {
@@ -56,4 +58,19 @@ public class SumInt64RawBenchmark {
         }
         bh.consume(sum);
     }
+
+    @Override
+    public String layer() { return "raw-vector"; }
+    @Override
+    public String question() { return "Is Vector API doing its job?"; }
+    @Override
+    public String baseline() { return "naive MemorySegment loop"; }
+    @Override
+    public String type() { return "int64-sum"; }
+    @Override
+    public String benchmarkId() { return "sum-int64-raw-vector"; }
+    @Override
+    public int rows() { return rows; }
+    @Override
+    public int nullPercent() { return 0; }
 }

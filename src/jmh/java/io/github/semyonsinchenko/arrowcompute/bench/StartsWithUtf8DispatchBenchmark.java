@@ -27,14 +27,15 @@ import org.openjdk.jmh.infra.Blackhole;
 @State(Scope.Thread)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-public class StartsWithUtf8PathBenchmark {
+public class StartsWithUtf8DispatchBenchmark implements BenchmarkMetadataProvider {
+    private static final long SEED = BenchmarkProfiles.REQUIRED_SEED;
     @Param({"1024", "16384", "65536", "1048576"})
     public int rows;
 
     @Param({"2", "8", "16", "32"})
     public int needleLength;
 
-    @Param({"0", "10"})
+    @Param({"0", "1", "10", "30"})
     public int nullPercent;
 
     private RootAllocator root;
@@ -50,6 +51,7 @@ public class StartsWithUtf8PathBenchmark {
 
     @Setup(Level.Trial)
     public void setUp() {
+        BenchmarkSupport.validateTrial(this, SEED);
         root = new RootAllocator();
         child = root.newChildAllocator("startswith-path", 0, Long.MAX_VALUE);
         input = new VarCharVector("input", child);
@@ -102,7 +104,7 @@ public class StartsWithUtf8PathBenchmark {
 
     @Setup(Level.Invocation)
     public void clearOut() {
-        out.setValueCount(0);
+        BenchmarkSupport.clearOut(out);
     }
 
     @Benchmark
@@ -122,4 +124,19 @@ public class StartsWithUtf8PathBenchmark {
         Compute.startsWith(input, needle, out);
         bh.consume(out);
     }
+
+    @Override
+    public String layer() { return "dispatch"; }
+    @Override
+    public String question() { return "Is dispatch overhead acceptable?"; }
+    @Override
+    public String baseline() { return "wrapper"; }
+    @Override
+    public String type() { return "utf8-startswith"; }
+    @Override
+    public String benchmarkId() { return "startswith-utf8-layer"; }
+    @Override
+    public int rows() { return rows; }
+    @Override
+    public int nullPercent() { return nullPercent; }
 }

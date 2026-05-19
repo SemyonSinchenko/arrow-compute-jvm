@@ -21,11 +21,11 @@ import org.openjdk.jmh.infra.Blackhole;
 @State(Scope.Thread)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-public class MulFloat64RawBenchmark {
-    private static final long SEED = 0xC0FFEEL;
+public class MulFloat64RawBenchmark implements BenchmarkMetadataProvider {
+    private static final long SEED = BenchmarkProfiles.REQUIRED_SEED;
     private static final ValueLayout.OfDouble FLOAT64_LE = ValueLayout.JAVA_DOUBLE_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
-    @Param({"4096", "16384", "65536", "262144"})
+    @Param({"1024", "16384", "65536", "1048576"})
     public int rows;
 
     private Arena arena;
@@ -35,6 +35,7 @@ public class MulFloat64RawBenchmark {
 
     @Setup
     public void setUp() {
+        BenchmarkSupport.validateTrial(this, SEED);
         arena = Arena.ofConfined();
         long bytes = (long) rows * Double.BYTES;
         left = arena.allocate(bytes);
@@ -70,4 +71,19 @@ public class MulFloat64RawBenchmark {
         }
         bh.consume(out);
     }
+
+    @Override
+    public String layer() { return "raw-vector"; }
+    @Override
+    public String question() { return "Is Vector API doing its job?"; }
+    @Override
+    public String baseline() { return "naive MemorySegment loop"; }
+    @Override
+    public String type() { return "float64-mul"; }
+    @Override
+    public String benchmarkId() { return "mul-float64-raw-vector"; }
+    @Override
+    public int rows() { return rows; }
+    @Override
+    public int nullPercent() { return 0; }
 }

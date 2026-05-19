@@ -20,10 +20,10 @@ import org.openjdk.jmh.infra.Blackhole;
 @State(Scope.Thread)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-public class BitmapAndBenchmark {
-    private static final long SEED = 0xC0FFEEL;
+public class BitmapAndRawBenchmark implements BenchmarkMetadataProvider {
+    private static final long SEED = BenchmarkProfiles.REQUIRED_SEED;
 
-    @Param({"4096", "16384", "65536", "262144"})
+    @Param({"1024", "16384", "65536", "1048576"})
     public int rows;
 
     private Arena arena;
@@ -34,6 +34,7 @@ public class BitmapAndBenchmark {
 
     @Setup
     public void setUp() {
+        BenchmarkSupport.validateTrial(this, SEED);
         arena = Arena.ofConfined();
         bytes = (rows + 7) >>> 3;
         left = arena.allocate(bytes);
@@ -73,4 +74,19 @@ public class BitmapAndBenchmark {
         }
         bh.consume(out);
     }
+
+    @Override
+    public String layer() { return "raw-vector"; }
+    @Override
+    public String question() { return "Is Vector API doing its job?"; }
+    @Override
+    public String baseline() { return "scalar bitmap loop"; }
+    @Override
+    public String type() { return "bitmap-and"; }
+    @Override
+    public String benchmarkId() { return "bitmap-and-raw-vector"; }
+    @Override
+    public int rows() { return rows; }
+    @Override
+    public int nullPercent() { return 0; }
 }

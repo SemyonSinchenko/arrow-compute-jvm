@@ -21,11 +21,11 @@ import org.openjdk.jmh.infra.Blackhole;
 @State(Scope.Thread)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-public class BooleanPackingBenchmark {
-    private static final long SEED = 0xB16B00B5L;
+public class BooleanPackingRawBenchmark implements BenchmarkMetadataProvider {
+    private static final long SEED = BenchmarkProfiles.REQUIRED_SEED;
     private static final ValueLayout.OfInt INT32_LE = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
-    @Param({"4096", "16384", "65536", "262144"})
+    @Param({"1024", "16384", "65536", "1048576"})
     public int rows;
 
     private Arena arena;
@@ -36,6 +36,7 @@ public class BooleanPackingBenchmark {
 
     @Setup
     public void setUp() {
+        BenchmarkSupport.validateTrial(this, SEED);
         arena = Arena.ofConfined();
         long dataBytes = (long) rows * Integer.BYTES;
         int bitmapBytes = (rows + 7) >>> 3;
@@ -86,4 +87,19 @@ public class BooleanPackingBenchmark {
         }
         bh.consume(outBits);
     }
+
+    @Override
+    public String layer() { return "raw-vector"; }
+    @Override
+    public String question() { return "Is Vector API doing its job?"; }
+    @Override
+    public String baseline() { return "byte-per-bool then pack"; }
+    @Override
+    public String type() { return "int32-compare-gt-pack"; }
+    @Override
+    public String benchmarkId() { return "boolean-packing-raw-vector"; }
+    @Override
+    public int rows() { return rows; }
+    @Override
+    public int nullPercent() { return 0; }
 }
