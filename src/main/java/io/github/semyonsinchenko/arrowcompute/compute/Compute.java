@@ -4,6 +4,8 @@ import io.github.semyonsinchenko.arrowcompute.compute.dispatch.AddDispatch;
 import io.github.semyonsinchenko.arrowcompute.compute.dispatch.AggregateDispatch;
 import io.github.semyonsinchenko.arrowcompute.compute.dispatch.DivideDispatch;
 import io.github.semyonsinchenko.arrowcompute.compute.dispatch.MulDispatch;
+import io.github.semyonsinchenko.arrowcompute.compute.dispatch.StartsWithDispatch;
+import java.util.Objects;
 import org.apache.arrow.vector.FieldVector;
 
 /**
@@ -27,5 +29,12 @@ public final class Compute {
 
     public static void sum(FieldVector input, FieldVector out) {
         AggregateDispatch.sum(input, out);
+    }
+
+    public static void startsWith(FieldVector input, byte[] needle, FieldVector out) {
+        Objects.requireNonNull(input, "input must not be null");
+        Objects.requireNonNull(needle, "needle must not be null");
+        Objects.requireNonNull(out, "out must not be null");
+        StartsWithDispatch.eval(input, needle, out);
     }
 }

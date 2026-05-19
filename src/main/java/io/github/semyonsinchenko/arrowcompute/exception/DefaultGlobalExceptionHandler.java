@@ -6,6 +6,9 @@ public final class DefaultGlobalExceptionHandler implements GlobalExceptionHandl
         if (exception instanceof BuildConstraintException constraint) {
             return new ErrorResponse(constraint.errorCode(), constraint.errorMessage(), "business");
         }
+        if (exception instanceof StartsWithBusinessException startsWith) {
+            return new ErrorResponse(startsWith.errorCode(), startsWith.errorMessage(), "business");
+        }
         return new ErrorResponse("BUSINESS_ERROR", safeMessage(exception), "business");
     }
 
