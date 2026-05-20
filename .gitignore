@@ -423,3 +423,5 @@ gradle-app.setting
 
 # End of https://www.toptal.com/developers/gitignore/api/java,intellij,gradle,emacs,python,c++
 
+# Criterion
+arrow-rs-baseline/results/native_bench
