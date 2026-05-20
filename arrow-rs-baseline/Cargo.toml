@@ -18,3 +18,7 @@ harness = false
 [[bench]]
 name = "add_float64"
 harness = false
+
+[[bench]]
+name = "mul_float64"
+harness = false

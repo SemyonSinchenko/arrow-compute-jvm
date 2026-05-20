@@ -37,6 +37,7 @@ class ArrowRsBaselineProject {
     +Cargo.toml manifest
     +benches/add_int32.rs
     +benches/add_float64.rs
+    +benches/mul_float64.rs
     +README.md
     +Makefile
     +tools/export_criterion_results.py
@@ -101,7 +102,7 @@ ArrowRsBaselineProject --> BenchmarkDocsUpdateResponse : maps to
 ## Operations
 
 ### Create/Update Benchmark Module - Cargo Reference Subproject (`arrow-rs-baseline/`)
-1. Responsibility: Provide out-of-process native reference results for int32/float64 add with matched benchmark dimensions.
+1. Responsibility: Provide out-of-process native reference results for int32 add, float64 add, and float64 mul with matched benchmark dimensions.
 2. Attributes:
    - `rows`: `u32[]` - `{1024, 16384, 65536, 1048576}`.
    - `seed`: `u64` - fixed `0xC0FFEE` reproducibility seed.
@@ -115,6 +116,11 @@ ArrowRsBaselineProject --> BenchmarkDocsUpdateResponse : maps to
         - Repeat for all row sizes.
     - `bench_add_float64(c: &mut Criterion) -> ()`
       - Logic mirrors int32 benchmark with float64 data width.
+    - `bench_mul_float64(c: &mut Criterion) -> ()`
+      - Logic:
+        - Generate deterministic float64 inputs once per row-size case.
+        - Reuse cached inputs and run compute in `iter(...)` loop.
+        - Call Arrow compute mul and `black_box` output.
     - `native_bench` / `native_bench BENCH=<name>` (Makefile target)
       - Logic:
         - Delete `target/criterion` before every run.
