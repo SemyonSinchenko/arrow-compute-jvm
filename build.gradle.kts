@@ -116,8 +116,8 @@ jmh {
             .map { listOf(it) }
             .orElse(emptyList())
     )
-    warmupIterations.set(10)
-    iterations.set(10)
-    fork.set(3)
+    warmupIterations.set(3)
+    iterations.set(3)
+    fork.set(2)
     jvmArgsAppend.set(sharedJvmArgs)
 }

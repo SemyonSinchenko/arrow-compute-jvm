@@ -1,11 +1,7 @@
 package io.github.semyonsinchenko.arrowcompute.bench;
 
-import io.github.semyonsinchenko.arrowcompute.compute.Compute;
-import io.github.semyonsinchenko.arrowcompute.compute.raw.StartsWithUtf8Raw;
 import io.github.semyonsinchenko.arrowcompute.compute.wrapper.safe.StartsWithUtf8;
 import io.github.semyonsinchenko.arrowcompute.memory.BufferRefs;
-import io.github.semyonsinchenko.arrowcompute.memory.SegmentViews;
-import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import org.apache.arrow.memory.BufferAllocator;
@@ -35,19 +31,15 @@ public class StartsWithUtf8DispatchBenchmark implements BenchmarkMetadataProvide
     @Param({"2", "8", "16", "32"})
     public int needleLength;
 
-    @Param({"0", "1", "10", "30"})
+    @Param({"0", "30"})
     public int nullPercent;
 
     private RootAllocator root;
     private BufferAllocator child;
     private VarCharVector input;
-    private BitVector out;
     private byte[] needle;
 
     private BufferRefs refs;
-    private MemorySegment offsetsSeg;
-    private MemorySegment dataSeg;
-    private MemorySegment outBitsSeg;
 
     @Setup(Level.Trial)
     public void setUp() {
@@ -55,9 +47,7 @@ public class StartsWithUtf8DispatchBenchmark implements BenchmarkMetadataProvide
         root = new RootAllocator();
         child = root.newChildAllocator("startswith-path", 0, Long.MAX_VALUE);
         input = new VarCharVector("input", child);
-        out = new BitVector("out", child);
         input.allocateNew();
-        out.allocateNew(rows);
 
         byte[] base = "abcdefghijklmnopqrstuvwxyz0123456789".getBytes(StandardCharsets.UTF_8);
         needle = new byte[needleLength];
@@ -85,44 +75,24 @@ public class StartsWithUtf8DispatchBenchmark implements BenchmarkMetadataProvide
         }
         input.setValueCount(rows);
 
-        refs = BufferRefs.retain(input, out);
-        long offsetsBytes = (long) (rows + 1) * Integer.BYTES;
-        long outBitsBytes = (rows + 7L) >>> 3;
-        offsetsSeg = SegmentViews.fromArrowBuf(input.getOffsetBuffer(), offsetsBytes);
-        dataSeg = SegmentViews.fromArrowBuf(input.getDataBuffer(), input.getDataBuffer().capacity());
-        outBitsSeg = SegmentViews.fromArrowBuf(out.getDataBuffer(), outBitsBytes);
+        refs = BufferRefs.retain(input);
     }
 
     @TearDown(Level.Trial)
     public void tearDown() {
         refs.close();
-        out.close();
         input.close();
         child.close();
         root.close();
     }
 
-    @Setup(Level.Invocation)
-    public void clearOut() {
-        BenchmarkSupport.clearOut(out);
-    }
-
-    @Benchmark
-    public void rawComputeAll(Blackhole bh) {
-        StartsWithUtf8Raw.computeAll(offsetsSeg, dataSeg, needle, outBitsSeg, rows);
-        bh.consume(outBitsSeg);
-    }
-
     @Benchmark
     public void wrapperEval(Blackhole bh) {
-        StartsWithUtf8.eval(input, needle, out);
-        bh.consume(out);
-    }
-
-    @Benchmark
-    public void apiComputeStartsWith(Blackhole bh) {
-        Compute.startsWith(input, needle, out);
-        bh.consume(out);
+        try (var out = new BitVector("out", child)) {
+            out.allocateNew(rows);
+            StartsWithUtf8.eval(input, needle, out);
+            bh.consume(out);
+        }
     }
 
     @Override

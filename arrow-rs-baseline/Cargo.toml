@@ -1,0 +1,20 @@
+[package]
+name = "arrow-rs-baseline"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+arrow-array = "56"
+arrow-arith = "56"
+
+[dev-dependencies]
+criterion = { version = "0.5", default-features = true }
+
+[[bench]]
+name = "add_int32"
+harness = false
+
+[[bench]]
+name = "add_float64"
+harness = false

@@ -28,7 +28,7 @@ say which one. The right baseline depends on the question:
 | Is Vector API doing its job? | naive `MemorySegment` loop |
 | Is wrapper overhead acceptable? | raw kernel |
 | Is dispatch overhead acceptable? | wrapper |
-| Is JVM-native beating per-kernel native (JNI/FFM)? | native baseline per kernel |
+| Is JVM-native within reach of an out-of-process vectorized-interpreter reference? | `arrow-rs-baseline/` Cargo+Criterion subproject |
 | Is the project useful vs ecosystem? | PyArrow compute chain |
 | What is the gap for slow-tier ops? | PyArrow + (later) native / 3rd-party |
 
@@ -51,18 +51,26 @@ Question:
 How much overhead does Arrow memory management, validity handling, and wrapper code add?
 ```
 
-### Native-baseline benchmarks (JNI or FFM downcall)
+### Native reference (out-of-process, arrow-rs)
 
 Question:
 
 ```text
-Is JVM-native execution faster than crossing into native Arrow C++ per kernel?
+Are JVM-native kernels within reach of a same-host out-of-process
+vectorized-interpreter reference (arrow-rs + Criterion)?
 ```
 
-"Native baseline" covers both classic JNI and FFM downcalls. The
-project may use either depending on what is least painful to wire; the
-interpretation rule (overhead is included, not subtracted) is the same
-for both.
+The native reference lives in the `arrow-rs-baseline/` Cargo subproject
+(see `spdd_requirements/requirements/11-bench-cleanup-and-cargo-reference.md`).
+It is **out-of-process** by design: in-process JNI/FFM bridging is not
+measured in the routine suite. JVM and Rust harnesses each run their
+own process on the same bench host, with matched row sizes, seed, and
+single-threaded steady-state mode. Neither side subtracts boundary
+cost — because there is no shared boundary to subtract.
+
+Forbidden claim: "Java is faster than Rust/C++." Permitted claim:
+"JVM-native kernels are within a small factor of the arrow-rs
+vectorized-interpreter reference on the same host in steady state."
 
 ### Macrobenchmarks
 
@@ -117,10 +125,12 @@ Recommended suites:
 ```text
 micro/raw
 micro/wrapper
-integration/jni
 macro/aggregation
 macro/fusion
 ```
+
+The out-of-process arrow-rs reference (`arrow-rs-baseline/`) is run
+separately via `cargo bench` and is not a JMH suite.
 
 ## Raw kernel benchmarks
 
@@ -161,8 +171,6 @@ Raw benchmarks must avoid dead-code elimination. Use realistic output consumptio
 Wrapper benchmarks compare:
 
 ```text
-raw kernel
-vs
 Arrow-aware wrapper
 vs
 public Compute dispatch
@@ -171,7 +179,6 @@ public Compute dispatch
 Example:
 
 ```text
-AddInt32Raw.computeAll
 AddInt32.eval
 Compute.add
 ```
@@ -180,65 +187,81 @@ Required dimensions:
 
 ```text
 rows: 1K, 16K, 64K, 1M
-nulls: 0%, 1%, 10%, 30%, all-null
-output: preallocated
+nulls: 0%, 30%
+output: allocated inside measured method
 ```
 
-Do not allocate output vectors inside the measured method unless the benchmark is explicitly about allocation.
+Wrapper and dispatch lanes allocate output per invocation and keep input
+buffers prepared in trial setup.
 
-## Native-baseline benchmarks (JNI or FFM)
+## Native reference (out-of-process, arrow-rs)
 
-These benchmarks compare JVM-native execution with crossing into
-native C++. The native call may be implemented via JNI or via FFM
-downcall (Java 22+); the interpretation rules below are the same for
-both.
+The native reference lives outside the JMH suite, in the
+`arrow-rs-baseline/` Cargo subproject. See
+`spdd_requirements/requirements/11-bench-cleanup-and-cargo-reference.md`
+for the spec.
 
-This is a scenario benchmark, not a pure Java-vs-C++ benchmark.
+This is a scenario benchmark, not a pure Java-vs-C++/Rust benchmark.
 
 Correct interpretation:
 
 ```text
-JVM-native kernel
+JVM-native kernel (same host, in JVM process)
 vs
-C++ kernel through JVM boundary
+arrow-rs vectorized-interpreter kernel (same host, in Rust process)
 ```
 
 Incorrect interpretation:
 
 ```text
-Java is faster/slower than C++ in general
+Java is faster/slower than Rust/C++ in general
 ```
 
-Benchmark variants:
+Reported rows in this comparison:
 
 ```text
-native_per_kernel
-native_per_expression
-native_fused, optional
-```
-
-For each kernel where practical:
-
-```text
-java_raw_vector
 java_wrapper
-java_compute_dispatch
-native_cpp_per_kernel
+arrow_rs_reference (out-of-process; from cargo bench)
 ```
 
-For expression chains:
+Neither side subtracts boundary cost because there is no shared
+boundary — JVM and arrow-rs each run in their own process on the same
+bench host. The earlier in-process JNI/FFM measurement (see superseded
+`12-native-baseline.md`) is retired: it was unwired and produced
+exception-allocation noise rather than kernel numbers.
+
+Boundary cost as a standalone question (cost of an empty FFM downcall
+or JNI call) is out of scope here and belongs to a future requirement
+focused specifically on call-boundary cost.
+
+## DRAM bandwidth ceiling
+
+At 1M rows the JVM raw kernel is memory-bandwidth-bound, not
+compute-bound. To interpret the 1M-row throughput honestly, the bench
+host's physical DRAM ceiling must be measured and recorded once.
+
+Procedure (one-shot per bench host):
 
 ```text
-java_fused
-java_chain
-native_cpp_chain
-native_cpp_fused, optional
+mbw -t 0 -n 5 1024            # MEMCPY mode, 5 iterations, 1024 MiB block
+                              # OR equivalent STREAM Triad run
 ```
 
-Native-boundary overhead (JNI marshalling or FFM downcall stub cost)
-**should not be subtracted** in scenario benchmarks. It is part of the
-design cost — the whole point of the project is that the JVM-native
-path avoids that boundary.
+Record in this file (the bench host hardware should match the host
+that produced the JMH numbers in `build/results/jmh/`):
+
+```text
+Host:                  <CPU model, RAM type>
+mbw / STREAM result:   <GB/s>
+JMH raw 1M-row peak:   <ops/ms × 1048576 × 12 bytes/row = GB/s>
+Fraction of ceiling:   <%>
+```
+
+A 1M-row add kernel reads two input arrays and writes one output —
+`3 × elementWidth` bytes per row. For int32, that is 12 bytes/row;
+for float64, 24 bytes/row.
+
+Re-record only when the bench host changes.
 
 ## Naive Java baselines
 
@@ -640,12 +663,16 @@ Compare:
 raw vs wrapper vs public dispatch
 ```
 
-### Phase 3: JNI
+### Phase 3: Out-of-process native reference
 
 ```text
-AddInt32 JVM vs JNI per kernel
-AddFloat64 JVM vs JNI per kernel
+AddInt32 JVM vs arrow-rs reference (same host)
+AddFloat64 JVM vs arrow-rs reference (same host)
 ```
+
+Run from the `arrow-rs-baseline/` Cargo subproject via `cargo bench`.
+In-process JNI/FFM bridging is not part of the routine benchmark suite
+(see superseded `spdd_requirements/requirements/12-native-baseline.md`).
 
 ### Phase 4: Aggregations
 
@@ -724,8 +751,8 @@ with caller-managed parallelism
 The most important comparisons are:
 
 ```text
-raw kernel vs naive Java
-JVM-native kernel vs JNI per-kernel
+raw kernel vs naive Java (one-time, recorded in this file)
+JVM-native kernel vs arrow-rs out-of-process reference (same host)
 batch aggregation vs naive Java and PyArrow
 fused JVM expression vs PyArrow/Arrow compute chain
 Graviton JAR vs released PyArrow wheel

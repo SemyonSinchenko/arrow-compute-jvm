@@ -660,8 +660,9 @@ the current layout is a deliberate v1 simplification.
 - Spilling, partial aggregation, distributed roll-up are **not** part
   of MVP.
 
-These are deferred until the MVP proves the JVM-native pitch beats
-per-kernel JNI for fixed-width arithmetic.
+These are deferred until the MVP proves the JVM-native pitch holds
+against the arrow-rs out-of-process reference for fixed-width
+arithmetic (see `§Risks & assumptions §Performance assumption`).
 
 ## Safe vs valid-only kernels
 
@@ -1165,9 +1166,9 @@ challenge or be updated.
   dispatch classes to plug in custom raw kernels without forking.
   Avoids `FunctionRegistry`/`Datum`/UDF infrastructure.
 - **No `FunctionRegistry`, `Datum`, or UDF system in MVP.** First
-  prove the JVM-native pitch beats per-kernel JNI for fixed-width
-  arithmetic. Generic dispatch infrastructure can come once a real
-  workload demands it.
+  prove the JVM-native pitch holds against the arrow-rs out-of-process
+  reference for fixed-width arithmetic. Generic dispatch infrastructure
+  can come once a real workload demands it.
 - **Options are primitive flags at wrapper signature.** No options
   objects in hot path. Raw kernels are single-mode; wrapper branches
   on flags and selects the right raw kernel.
@@ -1240,13 +1241,19 @@ between JDK versions.
 
 The project assumes that, in steady-state JVM workloads over
 preloaded Arrow buffers, the JVM can match within a small constant
-factor of native C++ for fixed-width primitive arithmetic and
-bitmap ops, and can *beat* per-kernel JNI for chained expressions.
+factor of a same-host out-of-process vectorized-interpreter reference
+(arrow-rs / Arrow C++) for fixed-width primitive arithmetic and bitmap
+ops, and can *beat* a generic per-kernel native chain when expressions
+are fused.
 
-If MVP benchmarks show the JVM is ≥ 2x slower than per-kernel JNI on
-all measured operations, the project's value proposition is
-disproved and the design changes accordingly. This is the headline
-risk.
+If steady-state benchmarks show the JVM is ≥ 2× slower than the
+out-of-process arrow-rs reference on all measured kernels at 1M rows
+(where both sides are DRAM-bandwidth-bound), the project's value
+proposition is disproved and the design changes accordingly. This is
+the headline risk. The reference lives in `arrow-rs-baseline/` per
+`spdd_requirements/requirements/11-bench-cleanup-and-cargo-reference.md`;
+the earlier in-process per-kernel JNI trigger from `12-native-baseline.md`
+is superseded.
 
 ## Summary
 

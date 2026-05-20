@@ -25,7 +25,7 @@ Every benchmark declares which row of `BENCHMARKS.md §Benchmark goals` baseline
 | Is Vector API doing its job? | naive `MemorySegment` loop |
 | Is wrapper overhead acceptable? | raw kernel |
 | Is dispatch overhead acceptable? | wrapper |
-| Is JVM-native beating per-kernel native? | native baseline per kernel |
+| Is JVM-native within reach of an out-of-process vectorized-interpreter reference? | arrow-rs Criterion subproject (see `11-bench-cleanup-and-cargo-reference.md`) |
 | Is the project useful vs ecosystem? | PyArrow compute chain |
 | What is the gap for slow-tier ops? | PyArrow + (later) native / 3rd-party |
 
@@ -83,8 +83,8 @@ A single `./gradlew jmh` invocation runs the suite. Results may be JSON or CSV (
 
 ## Non-goals
 
-- Macrobenchmarks (the 1BRC benchmark is `11-onebrc-arrow-aggregation-benchmark.md`).
-- Native baseline (`12-native-baseline.md`).
+- Macrobenchmarks (the 1BRC benchmark is `13-onebrc-arrow-aggregation-benchmark.md`).
+- Out-of-process native reference (`11-bench-cleanup-and-cargo-reference.md`); `12-native-baseline.md` superseded.
 - Slow-tier benchmarks (handled by their own iterations — `13-slow-tier-scaffold.md`, `14-slow-tier-decimal128-add.md`).
 - Fusion benchmark (`15-fused-expression-spike.md`).
 

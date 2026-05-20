@@ -1,11 +1,7 @@
 package io.github.semyonsinchenko.arrowcompute.bench;
 
-import io.github.semyonsinchenko.arrowcompute.compute.Compute;
-import io.github.semyonsinchenko.arrowcompute.compute.raw.DivInt32Raw;
 import io.github.semyonsinchenko.arrowcompute.compute.wrapper.validonly.DivInt32;
 import io.github.semyonsinchenko.arrowcompute.memory.BufferRefs;
-import io.github.semyonsinchenko.arrowcompute.memory.SegmentViews;
-import java.lang.foreign.MemorySegment;
 import java.util.concurrent.TimeUnit;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -31,18 +27,14 @@ public class DivInt32DispatchBenchmark implements BenchmarkMetadataProvider {
     @Param({"1024", "16384", "65536", "1048576"})
     public int rows;
 
-    @Param({"0", "1", "10", "30"})
+    @Param({"0", "30"})
     public int nullPercent;
 
     private RootAllocator root;
     private BufferAllocator child;
     private IntVector left;
     private IntVector right;
-    private IntVector out;
     private BufferRefs refs;
-    private MemorySegment leftData;
-    private MemorySegment rightData;
-    private MemorySegment outData;
 
     @Setup(Level.Trial)
     public void setUp() {
@@ -51,10 +43,8 @@ public class DivInt32DispatchBenchmark implements BenchmarkMetadataProvider {
         child = root.newChildAllocator("div-int32-path", 0, Long.MAX_VALUE);
         left = new IntVector("left", child);
         right = new IntVector("right", child);
-        out = new IntVector("out", child);
         left.allocateNew(rows);
         right.allocateNew(rows);
-        out.allocateNew(rows);
 
         for (int i = 0; i < rows; i++) {
             int lv = i * 17 - 9123;
@@ -76,44 +66,25 @@ public class DivInt32DispatchBenchmark implements BenchmarkMetadataProvider {
         left.setValueCount(rows);
         right.setValueCount(rows);
 
-        refs = BufferRefs.retain(left, right, out);
-        long byteSize = (long) rows * Integer.BYTES;
-        leftData = SegmentViews.data(left, byteSize);
-        rightData = SegmentViews.data(right, byteSize);
-        outData = SegmentViews.data(out, byteSize);
+        refs = BufferRefs.retain(left, right);
     }
 
     @TearDown(Level.Trial)
     public void tearDown() {
         refs.close();
-        out.close();
         right.close();
         left.close();
         child.close();
         root.close();
     }
 
-    @Setup(Level.Invocation)
-    public void clearOut() {
-        BenchmarkSupport.clearOut(out);
-    }
-
-    @Benchmark
-    public void rawNoNulls(Blackhole bh) {
-        DivInt32Raw.noNulls(leftData, rightData, outData, rows);
-        bh.consume(outData);
-    }
-
     @Benchmark
     public void wrapperEval(Blackhole bh) {
-        DivInt32.eval(left, right, out);
-        bh.consume(out);
-    }
-
-    @Benchmark
-    public void apiComputeDivide(Blackhole bh) {
-        Compute.divide(left, right, out);
-        bh.consume(out);
+        try (var out = new IntVector("out", child)) {
+            out.allocateNew(rows);
+            DivInt32.eval(left, right, out);
+            bh.consume(out);
+        }
     }
 
     @Override

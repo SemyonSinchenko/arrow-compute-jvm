@@ -4,17 +4,14 @@ import java.util.Set;
 
 public final class BenchmarkSuiteValidator {
     private static final Set<Integer> ALLOWED_ROWS = Set.of(1024, 16384, 65536, 1048576);
-    private static final Set<Integer> WRAPPER_DISPATCH_NULLS = Set.of(0, 1, 10, 30, 100);
-    private static final Set<Integer> NON_AGG_WRAPPER_DISPATCH_NULLS = Set.of(0, 1, 10, 30);
-    private static final Set<Integer> RAW_NULLS = Set.of(0);
+    private static final Set<Integer> WRAPPER_DISPATCH_NULLS = Set.of(0, 30);
+    private static final Set<Integer> NON_AGG_WRAPPER_DISPATCH_NULLS = Set.of(0, 30);
     private BenchmarkSuiteValidator() {
     }
 
     public static void validateClassMetadata(Class<?> benchmarkClass) {
         String name = benchmarkClass.getSimpleName();
-        boolean containsLayer = name.contains("Raw")
-                || name.contains("Wrapper")
-                || name.contains("Dispatch")
+        boolean containsLayer = name.contains("Dispatch")
                 || name.contains("Infra");
         if (!containsLayer) {
             throw new BenchmarkPolicyViolationException(
@@ -45,9 +42,7 @@ public final class BenchmarkSuiteValidator {
             }
             return;
         }
-        if (!RAW_NULLS.contains(nullPercent)) {
-            throw new IllegalArgumentException("benchmarkId=" + benchmarkId + " unsupported nullPercent=" + nullPercent);
-        }
+        throw new IllegalArgumentException("benchmarkId=" + benchmarkId + " unsupported benchmark category");
     }
 
     public static void validateSeed(long seed) {

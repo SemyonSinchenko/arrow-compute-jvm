@@ -1,22 +1,26 @@
 package io.github.semyonsinchenko.arrowcompute.bench;
 
+import java.time.Instant;
+
 public final class BenchmarkPolicyExceptionMapper {
     private BenchmarkPolicyExceptionMapper() {
     }
 
-    public static String handlePolicyViolation(BenchmarkPolicyViolationException ex) {
-        return "benchmark-policy-error"
-                + " benchmarkId=unknown"
-                + " ruleId=" + ex.errorCode()
-                + " message=\"" + ex.errorMessage() + "\""
-                + " remediation=fix-benchmark-metadata-or-params";
+    public static BenchmarkErrorResponse map(BenchmarkPolicyViolationException ex) {
+        return new BenchmarkErrorResponse(
+                ex.errorCode(),
+                ex.errorMessage(),
+                "policy",
+                Instant.now().toString()
+        );
     }
 
-    public static String handleIllegalArgument(IllegalArgumentException ex) {
-        return "benchmark-policy-error"
-                + " benchmarkId=unknown"
-                + " ruleId=BMK-PARAM-001"
-                + " message=\"" + ex.getMessage() + "\""
-                + " remediation=use-supported-rows-and-null-profile";
+    public static BenchmarkErrorResponse map(IllegalArgumentException ex) {
+        return new BenchmarkErrorResponse(
+                "BMK-PARAM-001",
+                ex.getMessage() == null ? "invalid benchmark parameters" : ex.getMessage(),
+                "validation",
+                Instant.now().toString()
+        );
     }
 }

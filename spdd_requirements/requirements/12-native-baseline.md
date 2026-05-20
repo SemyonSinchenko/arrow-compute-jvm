@@ -1,3 +1,5 @@
+> **Superseded by `11-bench-cleanup-and-cargo-reference.md` (2026-05-19).** The in-process FFM/JNI native baseline never produced honest numbers — no native library was built or wired in, and `NativeAdd{Int32,Float64}Benchmark` silently measured `Instant.now()` plus a `BenchmarkErrorResponse` allocation (~1400 ops/ms, rows-independent). Out-of-process `arrow-rs + Criterion` on the same bench host replaces this. Retained for historical context only.
+
 # Requirement: Native Baseline (JNI or FFM downcall)
 
 ## Business requirement

@@ -1,11 +1,7 @@
 package io.github.semyonsinchenko.arrowcompute.bench;
 
-import io.github.semyonsinchenko.arrowcompute.compute.Compute;
-import io.github.semyonsinchenko.arrowcompute.compute.raw.MulFloat64Raw;
 import io.github.semyonsinchenko.arrowcompute.compute.wrapper.safe.MulFloat64;
 import io.github.semyonsinchenko.arrowcompute.memory.BufferRefs;
-import io.github.semyonsinchenko.arrowcompute.memory.SegmentViews;
-import java.lang.foreign.MemorySegment;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.apache.arrow.memory.BufferAllocator;
@@ -32,18 +28,14 @@ public class MulFloat64DispatchBenchmark implements BenchmarkMetadataProvider {
     @Param({"1024", "16384", "65536", "1048576"})
     public int rows;
 
-    @Param({"0", "1", "10", "30"})
+    @Param({"0", "30"})
     public int nullPercent;
 
     private RootAllocator root;
     private BufferAllocator child;
     private Float8Vector left;
     private Float8Vector right;
-    private Float8Vector out;
     private BufferRefs refs;
-    private MemorySegment leftData;
-    private MemorySegment rightData;
-    private MemorySegment outData;
 
     @Setup(Level.Trial)
     public void setUp() {
@@ -53,10 +45,8 @@ public class MulFloat64DispatchBenchmark implements BenchmarkMetadataProvider {
         child = root.newChildAllocator("mul-float64-path", 0, Long.MAX_VALUE);
         left = new Float8Vector("left", child);
         right = new Float8Vector("right", child);
-        out = new Float8Vector("out", child);
         left.allocateNew(rows);
         right.allocateNew(rows);
-        out.allocateNew(rows);
         for (int i = 0; i < rows; i++) {
             boolean lValid = BenchmarkSupport.isValidAt(i, nullPercent, 0);
             boolean rValid = BenchmarkSupport.isValidAt(i, nullPercent, 13);
@@ -76,44 +66,25 @@ public class MulFloat64DispatchBenchmark implements BenchmarkMetadataProvider {
         left.setValueCount(rows);
         right.setValueCount(rows);
 
-        refs = BufferRefs.retain(left, right, out);
-        long byteSize = (long) rows * Double.BYTES;
-        leftData = SegmentViews.data(left, byteSize);
-        rightData = SegmentViews.data(right, byteSize);
-        outData = SegmentViews.data(out, byteSize);
+        refs = BufferRefs.retain(left, right);
     }
 
     @TearDown(Level.Trial)
     public void tearDown() {
         refs.close();
-        out.close();
         right.close();
         left.close();
         child.close();
         root.close();
     }
 
-    @Setup(Level.Invocation)
-    public void clearOut() {
-        BenchmarkSupport.clearOut(out);
-    }
-
-    @Benchmark
-    public void rawComputeAll(Blackhole bh) {
-        MulFloat64Raw.computeAll(leftData, rightData, outData, rows);
-        bh.consume(outData);
-    }
-
     @Benchmark
     public void wrapperEval(Blackhole bh) {
-        MulFloat64.eval(left, right, out);
-        bh.consume(out);
-    }
-
-    @Benchmark
-    public void apiComputeMul(Blackhole bh) {
-        Compute.mul(left, right, out);
-        bh.consume(out);
+        try (var out = new Float8Vector("out", child)) {
+            out.allocateNew(rows);
+            MulFloat64.eval(left, right, out);
+            bh.consume(out);
+        }
     }
 
     @Override
