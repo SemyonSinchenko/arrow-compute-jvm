@@ -104,6 +104,17 @@ tasks.withType<Jar>().configureEach {
 
 val jmhInclude = providers.gradleProperty("jmhInclude")
 val jmhExclude = providers.gradleProperty("jmhExclude")
+val jmhParamPrefix = "jmhParam."
+val jmhBenchmarkParams = gradle.startParameter.projectProperties
+    .filterKeys { it.startsWith(jmhParamPrefix) }
+    .mapKeys { (key, _) -> key.removePrefix(jmhParamPrefix) }
+    .filterKeys { it.isNotBlank() }
+    .mapValues { (_, value) ->
+        value.split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+    }
+    .filterValues { it.isNotEmpty() }
 
 jmh {
     includes.set(
@@ -116,6 +127,9 @@ jmh {
             .map { listOf(it) }
             .orElse(emptyList())
     )
+    jmhBenchmarkParams.forEach { (name, values) ->
+        benchmarkParameters.put(name, objects.listProperty<String>().value(values))
+    }
     warmupIterations.set(3)
     iterations.set(3)
     fork.set(2)

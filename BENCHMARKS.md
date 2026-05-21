@@ -283,6 +283,22 @@ comparison flaw — see SPDD 14
 (`spdd_requirements/requirements/14-output-allocation-scenarios.md`)
 and §Output allocation policy above.
 
+**Cross-library comparison scope.** This library is JVM-native; it is
+not an attempt to mimic arrow-rs / arrow-cpp semantics. **Float64 cells
+(`add_float64`, `mul_float64`) are the recommended headline cross-library
+comparison** — both libraries default to IEEE-754 unchecked arithmetic
+there, so the kernel work is genuinely apples-to-apples. Integer and
+other cells (e.g., `add_int32`) are **developer-facing diagnostics for
+in-library tracking**, not headline cross-library numbers: the JVM
+library follows JVM-idiomatic defaults (wrapping arithmetic per
+JLS § 4.2.2, where `Integer.MAX_VALUE + 1 == Integer.MIN_VALUE`), while
+arrow-rs defaults to overflow-checking per the Arrow Compute spec.
+Visible gaps on those cells reflect different ecosystem defaults rather
+than implementation quality, and they should not be reported as
+cross-library performance claims without an explicit semantics-matched
+counterpart (e.g., a future `wrapperEvalReusedOutputChecked` cell using
+`AddInt32CheckedRaw` per `CORE_DESIGN.md §Options and flags`).
+
 ## DRAM bandwidth ceiling
 
 At 1M rows the JVM raw kernel is memory-bandwidth-bound, not

@@ -7,6 +7,8 @@ Java 25 build baseline for Arrow compute JVM scaffolding.
 - `./gradlew clean test`: compile and run smoke-level tests.
 - `./gradlew check`: enforce build contract checks and test execution.
 - `./gradlew jmh`: run benchmark harness wiring.
+- `./gradlew jmh -PjmhInclude="..."`: run only benchmarks matching regex.
+- `./gradlew jmh -PjmhParam.nullPercent=0`: run only `nullPercent=0` cells.
 
 ## JVM constraints
 
