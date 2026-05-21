@@ -288,7 +288,7 @@ equivalent Arrow Java path) before invoking compute.
 
 ## Arrow-aware wrapper layer
 
-Wrappers are the safety boundary between Arrow Java vectors and raw kernels.
+Wrappers are the Arrow-Java adapter into the kernel layer. They translate Arrow `FieldVector` inputs into `MemorySegment` views that raw kernels can consume, apply Arrow-specific validity rules, and set Arrow-specific output state. They do **not** own buffer lifetime; per SPDD 13 (`spdd_requirements/requirements/13-arrow-rs-peer-positioning.md`), the caller is responsible for keeping all input and output `FieldVector`s live for the duration of every wrapper call. This mirrors the arrow-rs / arrow-cpp kernel contract.
 
 Wrappers accept concrete Arrow vectors such as:
 
@@ -305,18 +305,18 @@ Wrappers are responsible for:
 - checking value counts
 - checking output capacity
 - rejecting sliced inputs (non-zero slice offset)
-- retaining/releasing Arrow buffers (both data and validity)
 - creating bounded `MemorySegment` views
-- preparing output validity buffers
+- preparing output validity buffers when `null_count > 0` (the `null_count == 0` path leaves validity-buffer contents unspecified per the Arrow IPC spec)
 - choosing null execution mode
 - calling raw kernels
-- setting output value count
+- setting output value count and null count
 
-`BufferRefs.retain(left, right, out)` retains both the data buffer and the
-validity buffer of every passed vector. There is no separate
-`retainData` / `retainValidity` split — wrappers consume validity in the
-common case, so the single `retain` call always pairs with a single
-`release` on close.
+Buffer lifetime is owned by the caller, not by the wrapper. Per SPDD 13,
+callers must keep input and output `FieldVector`s live for the duration of
+every wrapper call. `BufferRefs` survives as a public utility for callers
+(tests, ingestion paths, async hand-off) that need explicit retain/release
+pairing, but wrappers themselves no longer call it. This mirrors the
+arrow-rs / arrow-cpp kernel contract.
 
 Wrappers may import Arrow Java classes. Wrappers must not contain the main Vector API loop.
 
@@ -331,20 +331,19 @@ final class AddInt32 {
         Checks.outputCapacity(out, n);
         Checks.zeroSliceOffset(left, right);
 
-        try (var refs = BufferRefs.retain(left, right, out)) {
-            var leftData = SegmentViews.data(left, (long) n * Integer.BYTES);
-            var rightData = SegmentViews.data(right, (long) n * Integer.BYTES);
-            var outData = SegmentViews.data(out, (long) n * Integer.BYTES);
+        long byteSize = (long) n * Integer.BYTES;
+        var leftData = SegmentViews.data(left, byteSize);
+        var rightData = SegmentViews.data(right, byteSize);
+        var outData = SegmentViews.data(out, byteSize);
 
-            if (left.getNullCount() == 0 && right.getNullCount() == 0) {
-                Validity.markAllValid(out, n);
-            } else {
-                Validity.propagateBinary(left, right, out, n);
-            }
+        AddInt32Raw.computeAll(leftData, rightData, outData, n);
 
-            AddInt32Raw.computeAll(leftData, rightData, outData, n);
-            out.setValueCount(n);
+        if (left.getNullCount() == 0 && right.getNullCount() == 0) {
+            out.setNullCount(0);
+        } else {
+            Validity.propagateBinary(left, right, out, n);
         }
+        out.setValueCount(n);
     }
 }
 ```
@@ -818,6 +817,12 @@ NaN and Infinity are values, not nulls.
 
 Arrow Java buffers are reference-counted off-heap memory.
 
+**Buffer lifetime is owned by the caller.** Per SPDD 13, wrappers and raw
+kernels assume input and output `FieldVector`s remain live for the duration
+of every wrapper call. Wrappers do not retain. Callers that need to defer
+execution across thread or stage boundaries must retain explicitly using
+`BufferRefs` or Arrow Java's reference manager.
+
 All raw memory access must be centralized through memory utilities and wrapper code.
 
 All raw kernels assume **little-endian** buffers (Arrow in-memory
@@ -846,26 +851,30 @@ MemorySegment.ofAddress(arrowBufAddress).reinterpret(byteSize);
 
 This returns a **global, unrestricted** segment whose validity is *not*
 linked to any `Arena` or `Scope`. Lifetime correctness depends entirely
-on `BufferRefs` retain/release pairing. Therefore:
+on the caller's buffer-lifetime contract (see §Memory and lifetime model
+opening). Therefore:
 
-- `MemorySegment` views must never escape the wrapper's
-  `try-with-resources`. No storing in fields, no returning to callers,
-  no passing to background threads.
+- `MemorySegment` views must never escape the wrapper call. No storing
+  in fields, no returning to callers, no passing to background threads.
 - Tests run with `-Darrow.memory.debug.allocator=true` so any leaked
-  retain/release imbalance fails the test rather than silently
-  corrupting later runs.
+  retain/release imbalance at the caller's batch close fails the test
+  rather than silently corrupting later runs.
 - This choice trades safety for cost: the scoped form
   (`reinterpret(byteSize, arena, cleanup)`) would be safer but pays
   per-call Arena overhead. We accept the trade-off because wrappers are
-  thin and the lifetime invariant is local.
+  thin and the lifetime invariant is local to the call.
 
 ### `BufferRefs`
 
-Retains and releases exactly the buffers that will be accessed.
+Public utility for callers that need explicit retain/release pairing on
+Arrow buffers — for example, tests that materialize buffers, ingestion
+paths that hand buffers between stages, or async pipelines that cross
+thread boundaries. Wrappers do not call `BufferRefs` themselves; per
+SPDD 13, buffer lifetime is the caller's responsibility.
 
-Rules:
+When used by callers:
 
-- Retain data buffers before creating/using memory segments.
+- Retain data buffers before creating or using `MemorySegment` views.
 - Retain validity buffers when reading or writing validity.
 - Release buffers in `close()`.
 - Prefer try-with-resources.
@@ -880,6 +889,12 @@ Validity.markAllValid(out, n);
 Validity.propagateUnary(input, out, n);
 Validity.propagateBinary(left, right, out, n);
 ```
+
+Per SPDD 13, wrappers do not call `markAllValid` on the `null_count == 0`
+happy path. Instead they set the output's null count to `0` and follow the
+Arrow IPC convention that leaves validity-buffer contents unspecified.
+`markAllValid` remains available for callers that need a fully materialized
+bitmap.
 
 ### `Bitmap`
 
@@ -1148,9 +1163,12 @@ challenge or be updated.
   kernels without any Arrow Java import — every raw kernel can be
   exercised over an FFM `Arena`-backed `MemorySegment` with no
   allocator setup.
-- **Wrappers are the Arrow safety boundary.** All retain/release,
-  validity, capacity, and slice-offset checks happen at the wrapper
-  layer. Raw kernels assume correctness.
+- **Wrappers are the Arrow-Java adapter, not a safety boundary.** Per
+  SPDD 13, buffer lifetime is owned by the caller; wrappers do not
+  retain. Validity-buffer materialization is conditional on
+  `null_count > 0`. Capacity, value-count, and slice-offset checks
+  remain at the wrapper layer. Raw kernels still assume correctness;
+  nothing about the raw layer changes.
 - **Raw `/raw/` package is flat.** Null mode is encoded by method
   name (`computeAll` / `noNulls` / `skipNulls` / `validOnly`), not by
   package. Wrapper packages remain split because wrappers really do
@@ -1181,9 +1199,9 @@ challenge or be updated.
   hot-call-loop path so MVP shape does not drift.
 - **`MemorySegment.ofAddress(...).reinterpret(byteSize)` (two-arg
   form) is the status-quo lifetime model.** Lifetime correctness rests
-  on `BufferRefs` retain/release pairing; segments never escape the
-  wrapper's `try-with-resources`. Trade-off: safer scoped form
-  available but pays per-call Arena overhead.
+  on the caller's buffer-lifetime contract per SPDD 13; segments never
+  escape the wrapper call. Trade-off: safer scoped form available but
+  pays per-call Arena overhead.
 - **Tests run with allocator debug mode.**
   `-Darrow.memory.debug.allocator=true` catches retain/release
   imbalance at the test boundary.
@@ -1246,11 +1264,14 @@ factor of a same-host out-of-process vectorized-interpreter reference
 ops, and can *beat* a generic per-kernel native chain when expressions
 are fused.
 
-If steady-state benchmarks show the JVM is ≥ 2× slower than the
-out-of-process arrow-rs reference on all measured kernels at 1M rows
-(where both sides are DRAM-bandwidth-bound), the project's value
-proposition is disproved and the design changes accordingly. This is
-the headline risk. The reference lives in `arrow-rs-baseline/` per
+If steady-state benchmarks show the **thin** wrapper (per SPDD 13) is
+≥ 2× slower than the out-of-process arrow-rs reference on all measured
+kernels at 1M rows (where both sides are DRAM-bandwidth-bound), the
+project's value proposition is disproved and the design changes
+accordingly. This is the headline risk. The kill criterion deliberately
+targets the thin wrapper rather than the legacy heavy wrapper, whose
+structural ~2× cost is removed by SPDD 13 and is not in itself
+disqualifying. The reference lives in `arrow-rs-baseline/` per
 `spdd_requirements/requirements/11-bench-cleanup-and-cargo-reference.md`;
 the earlier in-process per-kernel JNI trigger from `12-native-baseline.md`
 is superseded.

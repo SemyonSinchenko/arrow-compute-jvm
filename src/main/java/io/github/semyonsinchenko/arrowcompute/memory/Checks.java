@@ -33,16 +33,31 @@ public final class Checks {
         }
     }
 
+    public static void zeroSliceOffset(FieldVector vector) {
+        Objects.requireNonNull(vector, "vector must not be null");
+        if (vector instanceof BaseVariableWidthVector variable) {
+            int offset = variable.getOffsetBuffer().getInt(0);
+            if (offset != 0) {
+                throw Errors.sliceOffset(vector.getName(), offset);
+            }
+        }
+    }
+
+    public static void zeroSliceOffset(FieldVector left, FieldVector right) {
+        zeroSliceOffset(left);
+        zeroSliceOffset(right);
+    }
+
+    public static void zeroSliceOffset(FieldVector left, FieldVector right, FieldVector out) {
+        zeroSliceOffset(left);
+        zeroSliceOffset(right);
+        zeroSliceOffset(out);
+    }
+
     public static void zeroSliceOffset(FieldVector... vectors) {
         Objects.requireNonNull(vectors, "vectors must not be null");
         for (var vector : vectors) {
-            Objects.requireNonNull(vector, "vector must not be null");
-            if (vector instanceof BaseVariableWidthVector variable) {
-                int offset = variable.getOffsetBuffer().getInt(0);
-                if (offset != 0) {
-                    throw Errors.sliceOffset(vector.getName(), offset);
-                }
-            }
+            zeroSliceOffset(vector);
         }
     }
 

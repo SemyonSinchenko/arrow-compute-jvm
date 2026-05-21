@@ -60,3 +60,5 @@ This requirement supersedes `12-native-baseline.md` for the kernel-level native 
 - Amends: `BENCHMARKS.md §Benchmark goals`, `§Native-baseline benchmarks` (retitled), and adds `§DRAM bandwidth ceiling`.
 - Amends: `CORE_DESIGN.md §Risks & assumptions §Performance assumption` (the headline-risk trigger no longer references in-process per-kernel JNI).
 - Project framing: see project memos on JVM-tax probe scope and on fusion-vs-interpreter positioning.
+- Forward reference: SPDD 13 (`13-arrow-rs-peer-positioning.md`) defines the caller-owned
+  buffer-lifetime wrapper contract used by these benchmark interpretations.

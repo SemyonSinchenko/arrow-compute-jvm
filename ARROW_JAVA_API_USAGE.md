@@ -61,11 +61,17 @@ Important Arrow Java concepts:
 
 Project rules:
 
-- Follow Arrow Java allocator/refcount rules.
-- Use `try-with-resources`.
+- Follow Arrow Java allocator/refcount rules. Per SPDD 13
+  (`spdd_requirements/requirements/13-arrow-rs-peer-positioning.md`),
+  buffer lifetime is the **caller's** responsibility: callers retain
+  across pipelines; wrappers do not retain per call.
+- Use `try-with-resources` at the level that owns buffer lifetime —
+  typically the caller (engine, test harness, ingestion path), not
+  the wrapper.
 - Prefer child allocators in tests that validate leak behavior.
 - Do not bypass `BufferAllocator` for Arrow-owned output allocation.
-- Do not keep raw `MemorySegment` views past Arrow buffer lifetime.
+- Do not keep raw `MemorySegment` views past Arrow buffer lifetime;
+  views must not escape the wrapper call.
 
 ---
 
@@ -115,9 +121,10 @@ Dispatch should primarily use Arrow Java vector classes and Arrow Java type meta
 MVP wrappers reject vectors that carry a non-zero slice offset (see
 `CORE_DESIGN.md §Raw kernel layer`). Arrow Java does **not** expose a
 universal `getSliceOffset()` on `FieldVector`; the detection mechanism
-is type-dependent. The check is centralized in
-`Checks.zeroSliceOffset(FieldVector... vectors)` (varargs) and runs at
-the wrapper boundary before raw kernels touch the buffers.
+is type-dependent. The check is centralized in `Checks.zeroSliceOffset`
+(arity-specific unary/binary/ternary overloads, plus varargs
+compatibility) and runs at the wrapper boundary before raw kernels touch
+the buffers.
 
 Concrete per-type behavior:
 
@@ -441,6 +448,9 @@ What still applies:
   implementation typically uses `java.util.regex` (for regex),
   `java.lang.String` byte access, `java.math.BigInteger` (for
   Decimal128 if no two-long primitive helper exists yet).
+- Caller-owned buffer lifetime. Per SPDD 13, slow-tier wrappers
+  follow the same caller-owned-buffer contract as fast-tier
+  wrappers; the wrapper does not retain.
 - Benchmarks compare against PyArrow / native baselines so the
   honest gap is visible.
 

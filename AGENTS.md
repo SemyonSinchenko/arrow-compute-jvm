@@ -202,23 +202,29 @@ vector.set(i, x);   // avoid in hot path
 
 Use Arrow buffer addresses or `MemorySegment` views.
 
-When using raw addresses, lifetime must be explicit. Retain Arrow buffers while raw memory views are in use and release them afterward.
+When using raw addresses, lifetime must be explicit. **Per SPDD 13
+(`spdd_requirements/requirements/13-arrow-rs-peer-positioning.md`),
+buffer lifetime is owned by the caller.** Wrappers do not retain; they
+assume input and output `FieldVector`s remain live for the duration of
+every wrapper call.
 
-Example policy:
+Callers (engines, test harnesses, ingestion paths) that need to keep a
+buffer live across a multi-kernel pipeline or hand it off across thread
+or stage boundaries retain explicitly:
 
 ```java
 var data = vector.getDataBuffer();
 data.getReferenceManager().retain();
 
 try {
-    // create MemorySegment view
-    // run kernel
+    // run multiple wrapper calls over the held buffer
 } finally {
     data.getReferenceManager().release();
 }
 ```
 
 `retain()` protects lifetime, not exclusive ownership.
+Wrappers do not retain/release per call on the hot path.
 
 ### Lifetime invariant for `MemorySegment` views
 
@@ -229,15 +235,15 @@ MemorySegment.ofAddress(arrowBufAddress).reinterpret(byteSize);
 ```
 
 This returns a **global, unrestricted** segment whose validity is *not*
-linked to any `Arena` or `Scope`. Lifetime correctness depends entirely on
-`BufferRefs` retain/release pairing. Therefore:
+linked to any `Arena` or `Scope`. Lifetime correctness depends entirely
+on the caller-owned-buffer contract documented in `CORE_DESIGN.md
+§Memory and lifetime model`. Therefore:
 
-- `MemorySegment` views must never escape the wrapper's
-  `try-with-resources`. No storing in fields, no returning to callers, no
-  passing to background threads.
+- `MemorySegment` views must never escape the wrapper call. No storing
+  in fields, no returning to callers, no passing to background threads.
 - Tests run with `-Darrow.memory.debug.allocator=true` so any leaked
-  retain/release imbalance fails the test rather than silently corrupting
-  later runs.
+  retain/release imbalance at the caller's batch close fails the test
+  rather than silently corrupting later runs.
 - The dangerous `MemorySegment.ofAddress(...)` call is centralized in
   `SegmentViews` — raw kernels and wrappers never call it directly.
 
@@ -464,7 +470,7 @@ Raw kernel entry points use `computeAll` (or `noNulls` / `skipNulls` /
 `validOnly` for explicit variants). Wrappers use `eval`. Mixing the two
 names is a portability hazard for grep and for agent contributors.
 
-Avoid exposing raw unsafe details to casual users, but do not hide them from the kernel layer.
+The library's audience is engine and library developers, not interactive analysts. Public APIs should remain ergonomic at the dispatch surface, but the wrapper and raw layers do not hide unsafe details from kernel consumers. See SPDD 13 for the positioning rationale.
 
 ## Options and modes
 
@@ -969,6 +975,10 @@ assume them:
   Callers serialize per-batch execution.
 - **Caller-owned outputs**: outputs are preallocated by the caller and
   assumed to be exclusively owned for the duration of the call.
+- **Caller-owned input/output buffer lifetime**: per SPDD 13, callers
+  must keep all input and output `FieldVector`s live for the duration of
+  every wrapper call. Wrappers do not retain. Slow-tier wrappers in
+  `wrapper/slow/` follow the same rule.
 
 ## Project motto
 

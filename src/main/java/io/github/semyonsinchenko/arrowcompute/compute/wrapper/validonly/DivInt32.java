@@ -1,7 +1,6 @@
 package io.github.semyonsinchenko.arrowcompute.compute.wrapper.validonly;
 
 import io.github.semyonsinchenko.arrowcompute.compute.raw.DivInt32Raw;
-import io.github.semyonsinchenko.arrowcompute.memory.BufferRefs;
 import io.github.semyonsinchenko.arrowcompute.memory.Checks;
 import io.github.semyonsinchenko.arrowcompute.memory.Errors;
 import io.github.semyonsinchenko.arrowcompute.memory.SegmentViews;
@@ -18,8 +17,9 @@ import java.lang.foreign.ValueLayout;
  * <p>Inputs: IntVector, IntVector. Output: IntVector. Null policy: valid-only;
  * nullable output validity is left & right. Checked behavior: precheck-before-loop for
  * active rows only, with deterministic first-offender row errors. Output validity rule:
- * all-valid for no-null inputs, otherwise AND propagation. Aliasing/lifetime assumptions:
- * wrapper validates shape and keeps MemorySegment views inside retain scope.</p>
+ * all-valid for no-null inputs, otherwise AND propagation. Caller-owned lifetime: wrapper does
+ * not retain buffers; caller keeps vectors live for the full call. Aliasing assumption: input and
+ * output do not overlap; segment views are call-local and do not escape.</p>
  */
 public final class DivInt32 {
     private static final long INT32_BYTES = Integer.BYTES;
@@ -32,33 +32,30 @@ public final class DivInt32 {
         Checks.outputCapacity(out, n);
         Checks.zeroSliceOffset(left, right, out);
 
-        try (var refs = BufferRefs.retain(left, right, out)) {
-            if (left.getNullCount() == 0 && right.getNullCount() == 0) {
-                Validity.markAllValid(out, n);
-                if (n > 0) {
-                    long dataBytes = (long) n * INT32_BYTES;
-                    var leftData = SegmentViews.data(left, dataBytes);
-                    var rightData = SegmentViews.data(right, dataBytes);
-                    precheckAllRows(leftData, rightData, n);
-                    var outData = SegmentViews.data(out, dataBytes);
-                    DivInt32Raw.noNulls(leftData, rightData, outData, n);
-                }
-            } else {
-                Validity.propagateBinary(left, right, out, n);
-                if (n > 0) {
-                    long dataBytes = (long) n * INT32_BYTES;
-                    int validityBytes = (int) BitVectorHelper.getValidityBufferSize(n);
-                    var leftData = SegmentViews.data(left, dataBytes);
-                    var rightData = SegmentViews.data(right, dataBytes);
-                    var activeValidity = SegmentViews.validity(out, validityBytes);
-                    precheckActiveRows(leftData, rightData, activeValidity, n);
-                    var outData = SegmentViews.data(out, dataBytes);
-                    DivInt32Raw.validOnly(leftData, rightData, outData, activeValidity, n);
-                }
+        if (left.getNullCount() == 0 && right.getNullCount() == 0) {
+            if (n > 0) {
+                long dataBytes = (long) n * INT32_BYTES;
+                var leftData = SegmentViews.data(left, dataBytes);
+                var rightData = SegmentViews.data(right, dataBytes);
+                precheckAllRows(leftData, rightData, n);
+                var outData = SegmentViews.data(out, dataBytes);
+                DivInt32Raw.noNulls(leftData, rightData, outData, n);
             }
-
-            out.setValueCount(n);
+        } else {
+            Validity.propagateBinary(left, right, out, n);
+            if (n > 0) {
+                long dataBytes = (long) n * INT32_BYTES;
+                int validityBytes = (int) BitVectorHelper.getValidityBufferSize(n);
+                var leftData = SegmentViews.data(left, dataBytes);
+                var rightData = SegmentViews.data(right, dataBytes);
+                var activeValidity = SegmentViews.validity(out, validityBytes);
+                precheckActiveRows(leftData, rightData, activeValidity, n);
+                var outData = SegmentViews.data(out, dataBytes);
+                DivInt32Raw.validOnly(leftData, rightData, outData, activeValidity, n);
+            }
         }
+
+        out.setValueCount(n);
     }
 
     public static void precheckActiveRows(MemorySegment leftData, MemorySegment rightData, MemorySegment activeValidity, int n) {

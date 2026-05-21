@@ -1,5 +1,6 @@
 package io.github.semyonsinchenko.arrowcompute.bench;
 
+import io.github.semyonsinchenko.arrowcompute.compute.Compute;
 import io.github.semyonsinchenko.arrowcompute.compute.wrapper.safe.MulFloat64;
 import io.github.semyonsinchenko.arrowcompute.memory.BufferRefs;
 import java.util.Random;
@@ -79,10 +80,22 @@ public class MulFloat64DispatchBenchmark implements BenchmarkMetadataProvider {
     }
 
     @Benchmark
-    public void wrapperEval(Blackhole bh) {
+    public void wrapperEvalThin(Blackhole bh) {
         try (var out = new Float8Vector("out", child)) {
             out.allocateNew(rows);
             MulFloat64.eval(left, right, out);
+            bh.consume(out);
+        }
+    }
+
+    @Benchmark
+    public void dispatchSmoke(Blackhole bh) {
+        if (rows != 1048576 || nullPercent != 0) {
+            return;
+        }
+        try (var out = new Float8Vector("out", child)) {
+            out.allocateNew(rows);
+            Compute.mul(left, right, out);
             bh.consume(out);
         }
     }

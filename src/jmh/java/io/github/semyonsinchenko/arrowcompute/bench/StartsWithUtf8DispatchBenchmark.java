@@ -1,5 +1,6 @@
 package io.github.semyonsinchenko.arrowcompute.bench;
 
+import io.github.semyonsinchenko.arrowcompute.compute.Compute;
 import io.github.semyonsinchenko.arrowcompute.compute.wrapper.safe.StartsWithUtf8;
 import io.github.semyonsinchenko.arrowcompute.memory.BufferRefs;
 import java.nio.charset.StandardCharsets;
@@ -87,10 +88,22 @@ public class StartsWithUtf8DispatchBenchmark implements BenchmarkMetadataProvide
     }
 
     @Benchmark
-    public void wrapperEval(Blackhole bh) {
+    public void wrapperEvalThin(Blackhole bh) {
         try (var out = new BitVector("out", child)) {
             out.allocateNew(rows);
             StartsWithUtf8.eval(input, needle, out);
+            bh.consume(out);
+        }
+    }
+
+    @Benchmark
+    public void dispatchSmoke(Blackhole bh) {
+        if (rows != 1048576 || nullPercent != 0) {
+            return;
+        }
+        try (var out = new BitVector("out", child)) {
+            out.allocateNew(rows);
+            Compute.startsWith(input, needle, out);
             bh.consume(out);
         }
     }

@@ -46,9 +46,11 @@ the whole project in one prompt.
 - buffers are little-endian (Arrow in-memory invariant);
 - raw kernels assume non-aliasing inputs vs output;
 - wrappers reject vectors with non-zero slice offset;
-- wrappers retain data + validity buffers together via
-  `BufferRefs.retain(...)`;
-- `MemorySegment` views never escape the wrapper's try-with-resources;
+- callers own input/output buffer lifetime; wrappers do not retain per
+  call (SPDD 13);
+- wrappers stay thin: no wrapper-local retain/release scope around
+  each `eval(...)` call;
+- `MemorySegment` views never escape the wrapper call;
 - tests run with `-Darrow.memory.debug.allocator=true`;
 - checked kernels precheck active rows before the compute loop and
   throw before any compute happens; no per-row throws in hot loop;

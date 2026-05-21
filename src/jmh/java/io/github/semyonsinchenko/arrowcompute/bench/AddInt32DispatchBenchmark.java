@@ -1,5 +1,6 @@
 package io.github.semyonsinchenko.arrowcompute.bench;
 
+import io.github.semyonsinchenko.arrowcompute.compute.Compute;
 import io.github.semyonsinchenko.arrowcompute.compute.wrapper.safe.AddInt32;
 import io.github.semyonsinchenko.arrowcompute.memory.BufferRefs;
 import org.apache.arrow.memory.BufferAllocator;
@@ -79,10 +80,22 @@ public class AddInt32DispatchBenchmark implements BenchmarkMetadataProvider {
     }
 
     @Benchmark
-    public void wrapperEval(Blackhole bh) {
+    public void wrapperEvalThin(Blackhole bh) {
         try (var out = new IntVector("out", child)) {
             out.allocateNew(rows);
             AddInt32.eval(left, right, out);
+            bh.consume(out);
+        }
+    }
+
+    @Benchmark
+    public void dispatchSmoke(Blackhole bh) {
+        if (rows != 1048576 || nullPercent != 0) {
+            return;
+        }
+        try (var out = new IntVector("out", child)) {
+            out.allocateNew(rows);
+            Compute.add(left, right, out);
             bh.consume(out);
         }
     }

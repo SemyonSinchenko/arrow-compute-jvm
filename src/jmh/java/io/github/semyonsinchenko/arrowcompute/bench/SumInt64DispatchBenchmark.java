@@ -1,5 +1,6 @@
 package io.github.semyonsinchenko.arrowcompute.bench;
 
+import io.github.semyonsinchenko.arrowcompute.compute.Compute;
 import io.github.semyonsinchenko.arrowcompute.compute.wrapper.agg.SumInt64;
 import io.github.semyonsinchenko.arrowcompute.memory.BufferRefs;
 import java.util.concurrent.TimeUnit;
@@ -69,10 +70,22 @@ public class SumInt64DispatchBenchmark implements BenchmarkMetadataProvider {
     }
 
     @Benchmark
-    public void wrapperEval(Blackhole bh) {
+    public void wrapperEvalThin(Blackhole bh) {
         try (var out = new BigIntVector("out", child)) {
             out.allocateNew(1);
             SumInt64.eval(input, out);
+            bh.consume(out);
+        }
+    }
+
+    @Benchmark
+    public void dispatchSmoke(Blackhole bh) {
+        if (rows != 1048576 || nullPercent != 0) {
+            return;
+        }
+        try (var out = new BigIntVector("out", child)) {
+            out.allocateNew(1);
+            Compute.sum(input, out);
             bh.consume(out);
         }
     }

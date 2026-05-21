@@ -2,9 +2,6 @@
 
 This document describes the benchmark philosophy for the JVM-native Arrow compute project.
 
-For when each benchmark suite is expected to land by iteration, see
-`DEVELOPMENT_PLAN.md`.
-
 The project targets long-running JVM data engines. The primary benchmark mode is:
 
 ```text
@@ -179,8 +176,8 @@ public Compute dispatch
 Example:
 
 ```text
-AddInt32.eval
-Compute.add
+wrapperEvalThin
+dispatchSmoke
 ```
 
 Required dimensions:
