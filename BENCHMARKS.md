@@ -173,11 +173,12 @@ vs
 public Compute dispatch
 ```
 
-Example:
+Examples (per `*DispatchBenchmark`):
 
 ```text
-wrapperEvalThin
-dispatchSmoke
+wrapperEvalNewOutput      # output allocated inside @Benchmark (apples-vs-arrow-rs)
+wrapperEvalReusedOutput   # output preallocated in @Setup(Trial) and reused (matches project API contract)
+dispatchSmoke             # regression tripwire for monomorphic dispatch
 ```
 
 Required dimensions:
@@ -185,11 +186,52 @@ Required dimensions:
 ```text
 rows: 1K, 16K, 64K, 1M
 nulls: 0%, 30%
-output: allocated inside measured method
+output allocation policy:
+  - wrapperEvalNewOutput    : allocated inside measured method
+  - wrapperEvalReusedOutput : preallocated in @Setup(Trial), reused per invocation
 ```
 
-Wrapper and dispatch lanes allocate output per invocation and keep input
-buffers prepared in trial setup.
+Input buffers are prepared in `@Setup(Level.Trial)` for both cells.
+`wrapperEvalNewOutput` allocates output per invocation; `wrapperEvalReusedOutput`
+holds the output in `@State` and reuses it. The per-invocation delta between
+the two cells measures the cost of Arrow Java's per-call buffer allocation
+at that row size. See SPDD 14 (`spdd_requirements/requirements/14-output-allocation-scenarios.md`).
+
+## Output allocation policy
+
+Two scenarios are measured separately and reported with explicit labels.
+
+**Scenario A — per-call output allocation** (`wrapperEvalNewOutput`)
+
+Output `FieldVector` is constructed and `allocateNew(rows)`-ed inside
+each `@Benchmark` method invocation, then closed at the end of the
+method. This matches arrow-rs's API shape: `arrow_arith::numeric::*`
+returns a fresh `PrimitiveArray<T>` per call, allocating data (and,
+when nulls are present, validity) on every kernel invocation. Use
+this cell for apples-to-apples comparison with the
+`arrow-rs-baseline/` reference.
+
+**Scenario B — reused output** (`wrapperEvalReusedOutput`)
+
+Output `FieldVector` is constructed and `allocateNew(maxRows)`-ed once
+in `@Setup(Level.Trial)`, held in `@State`, and reused on every
+`@Benchmark` invocation. This matches the project's API contract:
+`Compute.add(left, right, out)` puts output ownership on the caller,
+and the standard usage pattern in JVM data engines is to allocate an
+output once (per-task scratch, per-operator state, ThreadLocal pool)
+and reuse it across many wrapper calls in a pipeline batch loop.
+arrow-rs cannot run this scenario because its API returns by value;
+the asymmetry is a design point of this project, not a comparison
+flaw.
+
+**Why both ship**
+
+- Reporting only Scenario A flatters arrow-rs and understates the
+  JVM library's design advantage.
+- Reporting only Scenario B is unfair to arrow-rs (different API shape).
+- Each cell answers a different question. Both numbers ship and are
+  labeled with their policy. See SPDD 14
+  (`spdd_requirements/requirements/14-output-allocation-scenarios.md`).
 
 ## Native reference (out-of-process, arrow-rs)
 
@@ -230,6 +272,16 @@ exception-allocation noise rather than kernel numbers.
 Boundary cost as a standalone question (cost of an empty FFM downcall
 or JNI call) is out of scope here and belongs to a future requirement
 focused specifically on call-boundary cost.
+
+**Output-allocation asymmetry note.** `arrow_arith::numeric::*` returns
+a fresh `PrimitiveArray<T>` per call; there is no preallocated-output
+path through arrow-arith. So the per-call-alloc JVM cell
+(`wrapperEvalNewOutput`) is the apples-vs-arrow-rs comparison; the
+reused-output JVM cell (`wrapperEvalReusedOutput`) has no native
+counterpart. That asymmetry is a design point of this project, not a
+comparison flaw — see SPDD 14
+(`spdd_requirements/requirements/14-output-allocation-scenarios.md`)
+and §Output allocation policy above.
 
 ## DRAM bandwidth ceiling
 
@@ -588,7 +640,7 @@ input row count
 batch size
 null profile
 data type
-output allocation policy
+output allocation policy ({per-call | reused})  # required for wrapper benchmarks per SPDD 14
 warmup settings
 JDK version
 CPU model
@@ -628,6 +680,7 @@ Avoid:
 - ignoring dead-code elimination
 - mixing single-thread and multi-thread results
 - changing schemas between implementations
+- reporting only one output-allocation policy and calling it "the" wrapper number when the API contract supports reuse (see SPDD 14)
 
 ## Roadmap
 
@@ -659,6 +712,12 @@ Compare:
 ```text
 raw vs wrapper vs public dispatch
 ```
+
+Wrapper benchmarks report two output-allocation cells per dispatch
+class (per SPDD 14): `wrapperEvalNewOutput` (per-call alloc,
+apples-vs-arrow-rs) and `wrapperEvalReusedOutput` (preallocated,
+matches the project's API contract). Wrapper-cost claims are reported
+per output-allocation policy, not as a single number.
 
 ### Phase 3: Out-of-process native reference
 

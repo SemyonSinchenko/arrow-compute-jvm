@@ -9,7 +9,8 @@ public record BenchmarkMetadata(
         int nullProfile,
         String question,
         String baseline,
-        String outputAllocationPolicy
+        String outputAllocationPolicy,
+        String scenarioLabel
 ) {
     public String toJsonLine() {
         return "{\"className\":\"" + className
@@ -21,6 +22,7 @@ public record BenchmarkMetadata(
                 + ",\"question\":\"" + question
                 + "\",\"baseline\":\"" + baseline
                 + "\",\"outputAllocationPolicy\":\"" + outputAllocationPolicy
+                + "\",\"scenarioLabel\":\"" + scenarioLabel
                 + "\"}";
     }
 }

@@ -35,6 +35,7 @@ public class DivInt32DispatchBenchmark implements BenchmarkMetadataProvider {
     private BufferAllocator child;
     private IntVector left;
     private IntVector right;
+    private IntVector reusedOut;
     private BufferRefs refs;
 
     @Setup(Level.Trial)
@@ -68,11 +69,15 @@ public class DivInt32DispatchBenchmark implements BenchmarkMetadataProvider {
         right.setValueCount(rows);
 
         refs = BufferRefs.retain(left, right);
+
+        reusedOut = new IntVector("reusedOut", child);
+        reusedOut.allocateNew(rows);
     }
 
     @TearDown(Level.Trial)
     public void tearDown() {
         refs.close();
+        reusedOut.close();
         right.close();
         left.close();
         child.close();
@@ -80,12 +85,18 @@ public class DivInt32DispatchBenchmark implements BenchmarkMetadataProvider {
     }
 
     @Benchmark
-    public void wrapperEvalThin(Blackhole bh) {
+    public void wrapperEvalNewOutput(Blackhole bh) {
         try (var out = new IntVector("out", child)) {
             out.allocateNew(rows);
             DivInt32.eval(left, right, out);
             bh.consume(out);
         }
+    }
+
+    @Benchmark
+    public void wrapperEvalReusedOutput(Blackhole bh) {
+        DivInt32.eval(left, right, reusedOut);
+        bh.consume(reusedOut);
     }
 
     @Benchmark

@@ -38,6 +38,7 @@ public class SumInt64DispatchBenchmark implements BenchmarkMetadataProvider {
     private RootAllocator root;
     private BufferAllocator child;
     private BigIntVector input;
+    private BigIntVector reusedOut;
     private BufferRefs refs;
 
     @Setup(Level.Trial)
@@ -59,23 +60,33 @@ public class SumInt64DispatchBenchmark implements BenchmarkMetadataProvider {
         input.setValueCount(rows);
 
         refs = BufferRefs.retain(input);
+
+        reusedOut = new BigIntVector("reusedOut", child);
+        reusedOut.allocateNew(1);
     }
 
     @TearDown(Level.Trial)
     public void tearDown() {
         refs.close();
+        reusedOut.close();
         input.close();
         child.close();
         root.close();
     }
 
     @Benchmark
-    public void wrapperEvalThin(Blackhole bh) {
+    public void wrapperEvalNewOutput(Blackhole bh) {
         try (var out = new BigIntVector("out", child)) {
             out.allocateNew(1);
             SumInt64.eval(input, out);
             bh.consume(out);
         }
+    }
+
+    @Benchmark
+    public void wrapperEvalReusedOutput(Blackhole bh) {
+        SumInt64.eval(input, reusedOut);
+        bh.consume(reusedOut);
     }
 
     @Benchmark

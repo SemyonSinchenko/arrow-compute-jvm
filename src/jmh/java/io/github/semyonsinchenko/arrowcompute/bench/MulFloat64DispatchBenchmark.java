@@ -36,6 +36,7 @@ public class MulFloat64DispatchBenchmark implements BenchmarkMetadataProvider {
     private BufferAllocator child;
     private Float8Vector left;
     private Float8Vector right;
+    private Float8Vector reusedOut;
     private BufferRefs refs;
 
     @Setup(Level.Trial)
@@ -68,11 +69,15 @@ public class MulFloat64DispatchBenchmark implements BenchmarkMetadataProvider {
         right.setValueCount(rows);
 
         refs = BufferRefs.retain(left, right);
+
+        reusedOut = new Float8Vector("reusedOut", child);
+        reusedOut.allocateNew(rows);
     }
 
     @TearDown(Level.Trial)
     public void tearDown() {
         refs.close();
+        reusedOut.close();
         right.close();
         left.close();
         child.close();
@@ -80,12 +85,18 @@ public class MulFloat64DispatchBenchmark implements BenchmarkMetadataProvider {
     }
 
     @Benchmark
-    public void wrapperEvalThin(Blackhole bh) {
+    public void wrapperEvalNewOutput(Blackhole bh) {
         try (var out = new Float8Vector("out", child)) {
             out.allocateNew(rows);
             MulFloat64.eval(left, right, out);
             bh.consume(out);
         }
+    }
+
+    @Benchmark
+    public void wrapperEvalReusedOutput(Blackhole bh) {
+        MulFloat64.eval(left, right, reusedOut);
+        bh.consume(reusedOut);
     }
 
     @Benchmark

@@ -19,6 +19,36 @@ public final class BenchmarkSuiteValidator {
                     "class " + name + " must encode layer scenario in name"
             );
         }
+
+        if (name.endsWith("DispatchBenchmark")) {
+            boolean hasWrapperEvalNewOutput = hasSingleArgMethodNamed(benchmarkClass, "wrapperEvalNewOutput");
+            boolean hasWrapperEvalReusedOutput = hasSingleArgMethodNamed(benchmarkClass, "wrapperEvalReusedOutput");
+            boolean hasWrapperEvalThin = hasSingleArgMethodNamed(benchmarkClass, "wrapperEvalThin");
+
+            if (hasWrapperEvalThin) {
+                throw new BenchmarkPolicyViolationException(
+                        "BENCH_POLICY_AMBIGUOUS_WRAPPER_LANE",
+                        "benchmarkId=" + name + " uses retired lane name wrapperEvalThin"
+                );
+            }
+            if (!hasWrapperEvalNewOutput) {
+                throw new BenchmarkPolicyViolationException(
+                        "BENCH_POLICY_MISSING_NEW_OUTPUT_LANE",
+                        "benchmarkId=" + name + " missing wrapperEvalNewOutput lane"
+                );
+            }
+            if (!hasWrapperEvalReusedOutput) {
+                throw new BenchmarkPolicyViolationException(
+                        "BENCH_POLICY_MISSING_REUSED_OUTPUT_LANE",
+                        "benchmarkId=" + name + " missing wrapperEvalReusedOutput lane"
+                );
+            }
+        }
+    }
+
+    private static boolean hasSingleArgMethodNamed(Class<?> benchmarkClass, String methodName) {
+        return java.util.Arrays.stream(benchmarkClass.getDeclaredMethods())
+                .anyMatch(m -> m.getName().equals(methodName) && m.getParameterCount() == 1);
     }
 
     public static void validateParams(String benchmarkId, int rows, int nullPercent) {

@@ -39,6 +39,7 @@ public class StartsWithUtf8DispatchBenchmark implements BenchmarkMetadataProvide
     private BufferAllocator child;
     private VarCharVector input;
     private byte[] needle;
+    private BitVector reusedOut;
 
     private BufferRefs refs;
 
@@ -77,23 +78,33 @@ public class StartsWithUtf8DispatchBenchmark implements BenchmarkMetadataProvide
         input.setValueCount(rows);
 
         refs = BufferRefs.retain(input);
+
+        reusedOut = new BitVector("reusedOut", child);
+        reusedOut.allocateNew(rows);
     }
 
     @TearDown(Level.Trial)
     public void tearDown() {
         refs.close();
+        reusedOut.close();
         input.close();
         child.close();
         root.close();
     }
 
     @Benchmark
-    public void wrapperEvalThin(Blackhole bh) {
+    public void wrapperEvalNewOutput(Blackhole bh) {
         try (var out = new BitVector("out", child)) {
             out.allocateNew(rows);
             StartsWithUtf8.eval(input, needle, out);
             bh.consume(out);
         }
+    }
+
+    @Benchmark
+    public void wrapperEvalReusedOutput(Blackhole bh) {
+        StartsWithUtf8.eval(input, needle, reusedOut);
+        bh.consume(reusedOut);
     }
 
     @Benchmark

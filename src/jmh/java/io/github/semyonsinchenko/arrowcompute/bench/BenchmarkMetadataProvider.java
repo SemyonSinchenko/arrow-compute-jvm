@@ -16,7 +16,17 @@ public interface BenchmarkMetadataProvider {
     int nullPercent();
 
     default String outputAllocationPolicy() {
-        return "preallocated";
+        if (getClass().getSimpleName().endsWith("DispatchBenchmark")) {
+            return "per-call|reused";
+        }
+        return "n/a";
+    }
+
+    default String scenarioLabel() {
+        if (getClass().getSimpleName().endsWith("DispatchBenchmark")) {
+            return "Scenario A + Scenario B";
+        }
+        return "n/a";
     }
 
     default BenchmarkMetadata metadata() {
@@ -42,7 +52,8 @@ public interface BenchmarkMetadataProvider {
                 nullPercent(),
                 question(),
                 baseline(),
-                outputAllocationPolicy()
+                outputAllocationPolicy(),
+                scenarioLabel()
         );
     }
 }
