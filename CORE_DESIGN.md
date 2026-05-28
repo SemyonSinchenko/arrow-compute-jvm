@@ -1097,6 +1097,21 @@ A fused kernel should:
 
 Runtime code generation may eventually be used, but only after the handwritten kernel and wrapper model is proven.
 
+When runtime codegen is on the table, three candidate sub-paths exist on the JVM:
+(a) Janino compiling generated Java source, (b) `javax.tools.JavaCompiler` (the
+in-process JDK compiler) compiling generated Java source, (c) ByteBuddy/ASM
+emitting bytecode directly. All three avoid an LLVM-IR layer and let HotSpot's
+C2 plus the Vector API do SIMD lowering. The choice between them depends on
+whether the chosen compiler accepts `import jdk.incubator.vector.*` and
+produces bytecode whose imports resolve at runtime under the project's
+`--add-modules jdk.incubator.vector` JVM args. SPDD 15
+(`15-janino-runtime-codegen-feasibility-probe.md`) probes that question for
+the Janino path against `MulFloat64Raw` and ships a binary outcome that gates
+the codegen sub-path choice for any future fusion SPDD.
+
+SPDD 15 remains probe-scoped: it adds isolated `compute.codegen` artifacts only,
+without integrating runtime codegen into `Compute` or dispatch in this phase.
+
 ## Non-goals
 
 Do not start by implementing:

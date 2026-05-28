@@ -39,9 +39,14 @@ dependencies {
     implementation("org.apache.arrow:arrow-memory-unsafe:$arrowVersion")
     implementation("org.apache.arrow:arrow-algorithm:$arrowVersion")
 
+    compileOnly("org.codehaus.janino:janino:3.1.12")
+
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.2")
+    testRuntimeOnly("org.codehaus.janino:janino:3.1.12")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
+
+    jmhRuntimeOnly("org.codehaus.janino:janino:3.1.12")
 }
 
 tasks.withType<JavaCompile>().configureEach {

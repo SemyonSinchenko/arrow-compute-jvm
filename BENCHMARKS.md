@@ -779,6 +779,19 @@ numbers so workload-mix decisions are informed.
 
 ### Phase 5: Fusion
 
+Phase 5 is gated on a feasibility probe. SPDD 15
+(`15-janino-runtime-codegen-feasibility-probe.md`) tests whether Janino can
+compile Java source that imports `jdk.incubator.vector` and produce bytecode
+that runs at AOT-equivalent throughput under the project's standard JVM args.
+The probe's binary outcome determines which runtime-codegen sub-path (Janino
+source / JavaCompiler-API source / ByteBuddy bytecode — see `CORE_DESIGN.md
+§Expression fusion`) underlies the Phase 5 fused benchmarks. Until SPDD 15
+ships its result, the Phase 5 design below is provisional.
+
+The probe benchmark lane is intentionally narrow: `mul-float64-codegen` reused
+output with conventional row sizes (`1024`, `16384`, `65536`, `1048576`) and
+`nullPercent=0` to match existing suite conventions.
+
 ```text
 fused projection/filter expressions
 ```

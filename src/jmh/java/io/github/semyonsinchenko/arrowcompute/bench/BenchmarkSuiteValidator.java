@@ -12,7 +12,8 @@ public final class BenchmarkSuiteValidator {
     public static void validateClassMetadata(Class<?> benchmarkClass) {
         String name = benchmarkClass.getSimpleName();
         boolean containsLayer = name.contains("Dispatch")
-                || name.contains("Infra");
+                || name.contains("Infra")
+                || name.contains("CodeGen");
         if (!containsLayer) {
             throw new BenchmarkPolicyViolationException(
                     "BMK-NAMING-001",
@@ -68,6 +69,12 @@ public final class BenchmarkSuiteValidator {
                     throw new IllegalArgumentException("benchmarkId=" + benchmarkId + " unsupported nullPercent=" + nullPercent);
                 }
             } else if (!NON_AGG_WRAPPER_DISPATCH_NULLS.contains(nullPercent)) {
+                throw new IllegalArgumentException("benchmarkId=" + benchmarkId + " unsupported nullPercent=" + nullPercent);
+            }
+            return;
+        }
+        if (benchmarkId.contains("codegen")) {
+            if (nullPercent != 0) {
                 throw new IllegalArgumentException("benchmarkId=" + benchmarkId + " unsupported nullPercent=" + nullPercent);
             }
             return;
