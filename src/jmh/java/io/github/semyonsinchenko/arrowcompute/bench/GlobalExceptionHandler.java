@@ -1,8 +1,17 @@
 package io.github.semyonsinchenko.arrowcompute.bench;
 
+import io.github.semyonsinchenko.arrowcompute.compute.codegen.CodeGenProbeException;
 import java.time.Instant;
 
 public final class GlobalExceptionHandler {
+    public ErrorReport handleCodeGenProbeException(CodeGenProbeException exception) {
+        return new ErrorReport(exception.errorCode(), exception.errorMessage(), "codegen");
+    }
+
+    public ErrorReport handleIllegalArgumentException(IllegalArgumentException exception) {
+        return new ErrorReport("BMK-PARAM-001", safeValidationMessage(exception), "benchmark");
+    }
+
     public BenchmarkErrorResponse handleBusinessException(RuntimeException exception) {
         if (exception instanceof NativeBridgeUnavailableException unavailable) {
             return new BenchmarkErrorResponse(
@@ -26,5 +35,10 @@ public final class GlobalExceptionHandler {
     private static String safeMessage(RuntimeException exception) {
         String message = exception.getMessage();
         return message == null ? "unexpected runtime failure" : message;
+    }
+
+    private static String safeValidationMessage(IllegalArgumentException exception) {
+        String message = exception.getMessage();
+        return message == null ? "invalid benchmark parameters" : message;
     }
 }

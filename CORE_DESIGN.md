@@ -1112,6 +1112,20 @@ the codegen sub-path choice for any future fusion SPDD.
 SPDD 15 remains probe-scoped: it adds isolated `compute.codegen` artifacts only,
 without integrating runtime codegen into `Compute` or dispatch in this phase.
 
+The project's fusion design stance is **block fusion**, not whole-pipeline
+fusion in the Umbra/CedarDB sense. A query plan is split into vector-at-a-time
+*blocks* of k chained operations; each block is compiled to one Janino-generated
+VectorAPI method; block boundaries pay an X100-style materialization cost on
+purpose so the intra-block win (register-resident chaining, no per-op
+materialization) is decoupled from the inter-block hand-off cost. The block
+size k is not a design constant — it is determined empirically by SPDD 16
+(`16-fusion-block-size-probe.md`), which sweeps k across {5, 20, 50} against
+handwritten AOT-fused anchors, the naive reused-output chain, and an arrow-rs
+chain reference. SPDD 16 reports two break-even points (the k below which
+fusion is not worth the codegen overhead and the k above which Janino+HotSpot
+stops tracking the handwritten upper bound); a future fusion-optimizer SPDD
+consumes those numbers as block-sizing heuristics.
+
 ## Non-goals
 
 Do not start by implementing:

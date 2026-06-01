@@ -17,10 +17,6 @@ import org.codehaus.janino.SimpleCompiler;
  */
 public final class JaninoLoader {
     public MethodHandle compileToHandle(String source, String className, String methodName) {
-        Objects.requireNonNull(source, "source must not be null");
-        Objects.requireNonNull(className, "className must not be null");
-        Objects.requireNonNull(methodName, "methodName must not be null");
-
         var expectedType = MethodType.methodType(
                 void.class,
                 MemorySegment.class,
@@ -28,6 +24,14 @@ public final class JaninoLoader {
                 MemorySegment.class,
                 int.class
         );
+        return compileToHandle(source, className, methodName, expectedType);
+    }
+
+    public MethodHandle compileToHandle(String source, String className, String methodName, MethodType expectedType) {
+        Objects.requireNonNull(source, "source must not be null");
+        Objects.requireNonNull(className, "className must not be null");
+        Objects.requireNonNull(methodName, "methodName must not be null");
+        Objects.requireNonNull(expectedType, "expectedType must not be null");
 
         try {
             var compiler = new SimpleCompiler();

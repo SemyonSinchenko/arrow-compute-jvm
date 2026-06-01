@@ -85,6 +85,15 @@ Question:
 Can JVM-native fused expressions beat generic PyArrow / Arrow compute call chains?
 ```
 
+Sub-question (block-size): at what chain depth k does Janino-fused codegen
+stop tracking a handwritten AOT-fused anchor, and at what k does it stop
+beating the naive reused-output chain? See SPDD 16
+(`16-fusion-block-size-probe.md`), which sweeps `k ∈ {5, 20, 50}` over a
+single-input multiply chain against four cells (naive ping-pong, naive
+per-call alloc, Janino-fused, AOT-fused) plus an arrow-rs chain reference.
+The two break-even points feed a future fusion-optimizer's block-sizing
+heuristic.
+
 ## Threading model
 
 All kernel benchmarks are single-threaded.
@@ -779,14 +788,20 @@ numbers so workload-mix decisions are informed.
 
 ### Phase 5: Fusion
 
-Phase 5 is gated on a feasibility probe. SPDD 15
-(`15-janino-runtime-codegen-feasibility-probe.md`) tests whether Janino can
-compile Java source that imports `jdk.incubator.vector` and produce bytecode
-that runs at AOT-equivalent throughput under the project's standard JVM args.
-The probe's binary outcome determines which runtime-codegen sub-path (Janino
-source / JavaCompiler-API source / ByteBuddy bytecode — see `CORE_DESIGN.md
-§Expression fusion`) underlies the Phase 5 fused benchmarks. Until SPDD 15
-ships its result, the Phase 5 design below is provisional.
+SPDD 15 (`15-janino-runtime-codegen-feasibility-probe.md`) established the
+codegen substrate: Janino accepts `jdk.incubator.vector` imports and the
+resulting bytecode runs at AOT-equivalent throughput under the project's
+standard JVM args.
+
+The first fusion benchmark is SPDD 16 (`16-fusion-block-size-probe.md`),
+which probes the *block-size dimension*: how many chained ops can a single
+Janino-fused method absorb before HotSpot's inlining budget or Janino's
+source/bytecode size start to degrade throughput against a handwritten
+AOT-fused anchor? Four JVM cells (naive ping-pong reused output, naive
+per-call alloc, Janino-fused reused output, AOT-fused-handwritten reused
+output) plus an arrow-rs chain reference. `k ∈ {5, 20, 50}`. The probe
+reports two break-even points that feed a future fusion-optimizer
+SPDD's block-sizing heuristic.
 
 The probe benchmark lane is intentionally narrow: `mul-float64-codegen` reused
 output with conventional row sizes (`1024`, `16384`, `65536`, `1048576`) and
